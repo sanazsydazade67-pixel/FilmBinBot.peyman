@@ -2375,16 +2375,88 @@ async def cancel_command(
 # خطا
 # =========================================================
 
+
 async def error_handler(
     update,
     context,
 ):
 
+    print("\n" + "=" * 70)
+    print("❌ FILMBIN BOT ERROR")
+    print("=" * 70)
+
     print(
-        "BOT ERROR:",
-        context.error,
+        "ERROR TYPE:",
+        type(context.error).__name__
+        if context.error
+        else "UNKNOWN",
     )
 
+    print(
+        "ERROR:",
+        repr(context.error),
+    )
+
+    print(
+        "UPDATE TYPE:",
+        type(update).__name__
+        if update
+        else "None",
+    )
+
+    try:
+
+        if update:
+
+            print(
+                "UPDATE ID:",
+                getattr(update, "update_id", None),
+            )
+
+            print(
+                "USER:",
+                getattr(
+                    getattr(update, "effective_user", None),
+                    "id",
+                    None,
+                ),
+            )
+
+            print(
+                "CHAT:",
+                getattr(
+                    getattr(update, "effective_chat", None),
+                    "id",
+                    None,
+                ),
+            )
+
+            if update.callback_query:
+
+                print(
+                    "CALLBACK DATA:",
+                    update.callback_query.data,
+                )
+
+            if update.message:
+
+                print(
+                    "MESSAGE ID:",
+                    update.message.message_id,
+                )
+
+    except Exception as debug_error:
+
+        print(
+            "ERROR WHILE DEBUGGING UPDATE:",
+            repr(debug_error),
+        )
+
+    print("\nTRACEBACK:")
+
+    traceback.print_exc()
+
+    print("=" * 70 + "\n")
 
 # =========================================================
 # اجرای ربات
