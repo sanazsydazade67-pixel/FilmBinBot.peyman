@@ -2661,18 +2661,18 @@ def main():
     # -----------------------------------------------------
 
     application.add_handler(
-        MessageHandler(
-            (
-                filters.Chat(ARCHIVE_CHANNEL)
-                & (
-                    filters.PHOTO
-                    | filters.VIDEO
-                    | filters.Document.ALL
-                )
-            ),
-            archive_media_handler,
-        )
+    MessageHandler(
+        (
+            filters.Chat(ARCHIVE_CHANNEL)
+            & (
+                filters.PHOTO
+                | filters.VIDEO
+                | filters.Document.ALL
+            )
+        ),
+        archive_media_handler,
     )
+)
 
     # -----------------------------------------------------
     # پیام‌های متنی
