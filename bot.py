@@ -1,1 +1,2036 @@
+import os
+import secrets
+import string
 
+from telegram import (
+    Update,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+)
+from telegram.constants import ChatMemberStatus
+from telegram.ext import (
+    Application,
+    CommandHandler,
+    MessageHandler,
+    CallbackQueryHandler,
+    ContextTypes,
+    filters,
+)
+
+import database
+
+
+# =========================================================
+# تنظیمات اصلی
+# =========================================================
+
+BOT_TOKEN = os.getenv("BOT_TOKEN", "")
+
+# بعداً در Railway قرار می‌دهیم
+ADMIN_IDS = {
+    int(x.strip())
+    for x in os.getenv("ADMIN_IDS", "").split(",")
+    if x.strip().isdigit()
+}
+
+BOT_USERNAME = "FilmBinDownloadBot"
+
+# کانال اصلی فیلم‌بین
+FILM_CHANNEL = "@FilmBinTV15FilmBinMovie"
+
+# کانال آرشیو
+ARCHIVE_CHANNEL = "@P_sh_Archive"
+
+# عضویت اجباری
+REQUIRED_CHATS = [
+    ("@Istgah_Khande118", "کانال اول"),
+    ("@ZarabanHeart_Music", "کانال دوم"),
+    ("@FilmBin_vs_ZarabanMusic", "گروه"),
+]
+
+# حذف خودکار پیام خوش‌آمدگویی
+AUTO_DELETE_SECONDS = int(
+    os.getenv("AUTO_DELETE_SECONDS", "120")
+)
+
+
+# =========================================================
+# مراحل ثبت فیلم
+# =========================================================
+
+WAIT_TITLE = 1
+WAIT_ORIGINAL = 2
+WAIT_CATEGORY = 3
+WAIT_IMDB = 4
+WAIT_COUNTRY = 5
+WAIT_DIRECTOR = 6
+WAIT_STARS = 7
+WAIT_SYNOPSIS = 8
+WAIT_SUBTITLE = 9
+
+WAIT_360 = 10
+WAIT_480 = 11
+WAIT_720 = 12
+WAIT_1080 = 13
+
+WAIT_CONFIRM = 14
+
+
+# =========================================================
+# توابع کمکی
+# =========================================================
+
+def is_admin(user_id):
+    return user_id in ADMIN_IDS
+
+
+def generate_code():
+    chars = string.ascii_letters + string.digits
+    return "film_" + "".join(
+        secrets.choice(chars)
+        for _ in range(8)
+    )
+
+
+def normalize(text):
+    if not text:
+        return ""
+
+    return (
+        text
+        .replace("ي", "ی")
+        .replace("ى", "ی")
+        .replace("ك", "ک")
+        .strip()
+    )
+
+
+# =========================================================
+# حذف خودکار
+# =========================================================
+
+async def delete_later(context):
+    job = context.job
+
+    try:
+        await context.bot.delete_message(
+            chat_id=job.chat_id,
+            message_id=job.data,
+        )
+    except Exception:
+        pass
+
+
+# =========================================================
+# /start
+# =========================================================
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    user = update.effective_user
+
+    database.add_user(user.id)
+
+    if not context.args:
+        await send_welcome(update, context)
+        return
+
+    start_code = context.args[0]
+
+    movie = database.get_movie_by_code(start_code)
+
+    if not movie:
+        await update.message.reply_text(
+            "❌ لینک فیلم معتبر نیست یا فیلم حذف شده است."
+        )
+        return
+
+    quality = None
+
+    # مثال:
+    # film_A1234567_720p
+    parts = start_code.split("_")
+
+    if len(parts) >= 3:
+        quality = "_".join(parts[2:])
+
+    await show_membership(
+        update,
+        context,
+        movie["id"],
+        quality,
+    )
+
+
+# =========================================================
+# خوش‌آمدگویی
+# =========================================================
+
+async def send_welcome(update, context):
+
+    user = update.effective_user
+
+    text = (
+        "🎬 به ربات فیلم‌بین خوش آمدید!\n\n"
+        "🔎 از این ربات می‌توانید فیلم موردنظر خود را "
+        "جستجو و کیفیت موردنظر را دریافت کنید.\n\n"
+        "🔐 برای دریافت فیلم باید ابتدا در کانال‌ها "
+        "و گروه مشخص‌شده عضو شوید."
+    )
+
+    buttons = [
+        [
+            InlineKeyboardButton(
+                "🔎 جستجوی فیلم",
+                callback_data="search",
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                "📚 فیلم‌های منتشرشده",
+                callback_data="list",
+            )
+        ],
+    ]
+
+    if is_admin(user.id):
+        buttons.append(
+            [
+                InlineKeyboardButton(
+                    "⚙️ پنل مدیریت",
+                    callback_data="admin",
+                )
+            ]
+        )
+
+    msg = await update.message.reply_text(
+        text,
+        reply_markup=InlineKeyboardMarkup(buttons),
+    )
+
+    context.job_queue.run_once(
+        delete_later,
+        AUTO_DELETE_SECONDS,
+        data=msg.message_id,
+        chat_id=msg.chat_id,
+        name=f"welcome_{msg.message_id}",
+    )
+
+
+# =========================================================
+# عضویت اجباری
+# =========================================================
+
+async def show_membership(
+    update,
+    context,
+    movie_id,
+    quality=None,
+):
+
+    buttons = []
+
+    for chat, name in REQUIRED_CHATS:
+
+        buttons.append(
+            [
+                InlineKeyboardButton(
+                    f"📢 عضویت در {name}",
+                    url=f"https://t.me/{chat.lstrip('@')}",
+                )
+            ]
+        )
+
+    quality_value = quality or "all"
+
+    buttons.append(
+        [
+            InlineKeyboardButton(
+                "✅ بررسی عضویت",
+                callback_data=(
+                    f"check:{movie_id}:{quality_value}"
+                ),
+            )
+        ]
+    )
+
+    text = (
+        "🔐 برای دریافت فیلم، ابتدا در موارد زیر عضو شوید:\n\n"
+        "1️⃣ کانال اول\n"
+        "2️⃣ کانال دوم\n"
+        "3️⃣ گروه فیلم‌بین\n\n"
+        "بعد از عضویت روی «✅ بررسی عضویت» بزنید."
+    )
+
+    if update.callback_query:
+
+        await update.callback_query.message.reply_text(
+            text,
+            reply_markup=InlineKeyboardMarkup(buttons),
+        )
+
+    else:
+
+        await update.message.reply_text(
+            text,
+            reply_markup=InlineKeyboardMarkup(buttons),
+        )
+
+
+# =========================================================
+# بررسی عضویت
+# =========================================================
+
+async def check_membership(update, context):
+
+    query = update.callback_query
+
+    await query.answer()
+
+    _, movie_id, quality = query.data.split(
+        ":",
+        2,
+    )
+
+    movie_id = int(movie_id)
+
+    missing = []
+
+    for chat, name in REQUIRED_CHATS:
+
+        try:
+
+            member = await context.bot.get_chat_member(
+                chat,
+                query.from_user.id,
+            )
+
+            if member.status in (
+                ChatMemberStatus.LEFT,
+                ChatMemberStatus.BANNED,
+            ):
+                missing.append(name)
+
+        except Exception:
+
+            missing.append(name)
+
+    if missing:
+
+        await query.answer(
+            "❌ هنوز عضویت شما کامل نشده است.",
+            show_alert=True,
+        )
+
+        return
+
+    try:
+        await query.message.delete()
+    except Exception:
+        pass
+
+    if quality == "all":
+        quality = None
+
+    await send_movie_to_user(
+        query.from_user.id,
+        movie_id,
+        quality,
+        context,
+    )
+
+
+# =========================================================
+# ارسال فیلم
+# =========================================================
+
+async def send_movie_to_user(
+    user_id,
+    movie_id,
+    quality,
+    context,
+):
+
+    movie = database.get_movie(movie_id)
+
+    if not movie:
+
+        await context.bot.send_message(
+            user_id,
+            "❌ فیلم پیدا نشد.",
+        )
+
+        return
+
+    if movie["status"] != "published":
+
+        await context.bot.send_message(
+            user_id,
+            "❌ این فیلم هنوز منتشر نشده است.",
+        )
+
+        return
+
+    files = database.get_movie_files(movie_id)
+
+    selected = None
+
+    for file in files:
+
+        if quality and file["quality"] == quality:
+
+            selected = file
+            break
+
+    # اگر کیفیت مشخص نشده
+    if not quality:
+
+        buttons = []
+
+        for file in files:
+
+            link = (
+                f"https://t.me/{BOT_USERNAME}"
+                f"?start={movie['code']}_{file['quality']}"
+            )
+
+            buttons.append(
+                [
+                    InlineKeyboardButton(
+                        f"📥 {file['quality']}",
+                        url=link,
+                    )
+                ]
+            )
+
+        await context.bot.send_message(
+            user_id,
+            (
+                f"🎬 {movie['title']}\n\n"
+                "📥 کیفیت موردنظر را انتخاب کنید:"
+            ),
+            reply_markup=InlineKeyboardMarkup(buttons),
+        )
+
+        return
+
+    if not selected:
+
+        await context.bot.send_message(
+            user_id,
+            "❌ این کیفیت برای فیلم موجود نیست.",
+        )
+
+        return
+
+    try:
+
+        if selected["file_type"] == "video":
+
+            await context.bot.send_video(
+                user_id,
+                selected["file_id"],
+                caption=(
+                    f"🎬 {movie['title']}\n"
+                    f"📥 کیفیت: {quality}"
+                ),
+            )
+
+        else:
+
+            await context.bot.send_document(
+                user_id,
+                selected["file_id"],
+                caption=(
+                    f"🎬 {movie['title']}\n"
+                    f"📥 کیفیت: {quality}"
+                ),
+            )
+
+        database.record_download(
+            user_id,
+            movie_id,
+            quality,
+        )
+
+    except Exception:
+
+        await context.bot.send_message(
+            user_id,
+            "❌ ارسال فایل انجام نشد.",
+        )
+
+
+# =========================================================
+# پنل مدیریت
+# =========================================================
+
+def admin_menu_markup():
+
+    return InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton(
+                    "🎬 افزودن فیلم",
+                    callback_data="add",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    "📝 ثبت فیلم موجود",
+                    callback_data="existing",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    "📚 لیست فیلم‌ها",
+                    callback_data="list_admin",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    "🔎 جستجوی فیلم",
+                    callback_data="search_admin",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    "🗑 حذف فیلم",
+                    callback_data="delete_menu",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    "📊 آمار",
+                    callback_data="stats",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    "❌ بستن پنل",
+                    callback_data="close",
+                )
+            ],
+        ]
+    )
+
+
+async def admin_panel(update, context):
+
+    if not is_admin(
+        update.effective_user.id
+    ):
+
+        if update.callback_query:
+
+            await update.callback_query.answer(
+                "⛔ دسترسی ندارید.",
+                show_alert=True,
+            )
+
+        return
+
+    text = (
+        "🎬 پنل مدیریت فیلم‌بین\n\n"
+        "یک گزینه را انتخاب کنید:"
+    )
+
+    if update.callback_query:
+
+        await update.callback_query.message.edit_text(
+            text,
+            reply_markup=admin_menu_markup(),
+        )
+
+    else:
+
+        await update.message.reply_text(
+            text,
+            reply_markup=admin_menu_markup(),
+        )
+
+
+# =========================================================
+# دکمه‌های پنل
+# =========================================================
+
+async def admin_button(update, context):
+
+    query = update.callback_query
+
+    await query.answer()
+
+    user_id = query.from_user.id
+
+    if not is_admin(user_id):
+
+        await query.answer(
+            "⛔ دسترسی ندارید.",
+            show_alert=True,
+        )
+
+        return
+
+    data = query.data
+
+    # پنل
+    if data == "admin":
+
+        await admin_panel(
+            update,
+            context,
+        )
+
+        return
+
+    # افزودن فیلم
+    if data in ("add", "existing"):
+
+        context.user_data.clear()
+
+        context.user_data["mode"] = data
+        context.user_data["state"] = WAIT_TITLE
+
+        if data == "existing":
+
+            await query.message.reply_text(
+                "📝 ثبت فیلم موجود از آرشیو\n\n"
+                "ابتدا نام فیلم را بفرست.\n"
+                "بعداً فایل‌های موجود در "
+                "@P_sh_Archive را می‌توانی به ربات بفرستی."
+            )
+
+        else:
+
+            await query.message.reply_text(
+                "🎬 نام فیلم را بفرست:"
+            )
+
+        return
+
+    # لیست فیلم‌های کاربر
+    if data == "list":
+
+        rows = database.search_movies("")
+
+        if not rows:
+
+            await query.message.edit_text(
+                "📭 هنوز فیلم منتشرشده‌ای وجود ندارد.",
+                reply_markup=admin_menu_markup(),
+            )
+
+            return
+
+        buttons = []
+
+        for movie in rows[:30]:
+
+            buttons.append(
+                [
+                    InlineKeyboardButton(
+                        movie["title"],
+                        callback_data=f"movie:{movie['id']}",
+                    )
+                ]
+            )
+
+        await query.message.edit_text(
+            "📚 فیلم‌های منتشرشده:",
+            reply_markup=InlineKeyboardMarkup(buttons),
+        )
+
+        return
+
+    # لیست مدیریت
+    if data == "list_admin":
+
+        rows = database.get_all_movies()
+
+        if not rows:
+
+            await query.message.edit_text(
+                "📭 هنوز فیلمی ثبت نشده.",
+                reply_markup=admin_menu_markup(),
+            )
+
+            return
+
+        text = "📚 لیست فیلم‌ها:\n\n"
+
+        for movie in rows[:30]:
+
+            text += (
+                f"#{movie['id']} — "
+                f"{movie['title']} — "
+                f"{movie['status']}\n"
+            )
+
+        await query.message.edit_text(
+            text,
+            reply_markup=admin_menu_markup(),
+        )
+
+        return
+
+    # آمار
+    if data == "stats":
+
+        stats = database.get_stats()
+
+        text = (
+            "📊 آمار فیلم‌بین\n\n"
+            f"👤 کاربران: {stats['users']}\n"
+            f"🎬 کل فیلم‌ها: {stats['movies']}\n"
+            f"📢 منتشرشده: {stats['published']}\n"
+            f"📁 فایل‌ها: {stats['files']}\n"
+            f"📥 دانلودها: {stats['downloads']}"
+        )
+
+        await query.message.edit_text(
+            text,
+            reply_markup=admin_menu_markup(),
+        )
+
+        return
+
+    # جستجو
+    if data in ("search", "search_admin"):
+
+        context.user_data["search_admin"] = (
+            data == "search_admin"
+        )
+
+        context.user_data["search_user"] = (
+            data == "search"
+        )
+
+        await query.message.reply_text(
+            "🔎 نام فیلم را بفرست:"
+        )
+
+        return
+
+    # حذف
+    if data == "delete_menu":
+
+        context.user_data["await_delete_id"] = True
+
+        await query.message.reply_text(
+            "🗑 شناسه فیلم را بفرست.\n\n"
+            "مثلاً:\n"
+            "12"
+        )
+
+        return
+
+    # بستن
+    if data == "close":
+
+        try:
+            await query.message.delete()
+        except Exception:
+            pass
+
+        return
+
+
+# =========================================================
+# متن‌های دریافتی
+# =========================================================
+
+async def text_router(update, context):
+
+    user = update.effective_user
+
+    database.add_user(user.id)
+
+    state = context.user_data.get("state")
+
+    # اگر در حال ثبت فیلم هستیم
+    if state in (
+        WAIT_TITLE,
+        WAIT_ORIGINAL,
+        WAIT_CATEGORY,
+        WAIT_IMDB,
+        WAIT_COUNTRY,
+        WAIT_DIRECTOR,
+        WAIT_STARS,
+        WAIT_SYNOPSIS,
+        WAIT_SUBTITLE,
+        WAIT_360,
+        WAIT_480,
+        WAIT_720,
+        WAIT_1080,
+        "poster",
+        "trailer",
+    ):
+
+        if not is_admin(user.id):
+
+            return
+
+        return await registration_text(
+            update,
+            context,
+        )
+
+    # حذف فیلم
+    if (
+        context.user_data.get("await_delete_id")
+        and is_admin(user.id)
+    ):
+
+        context.user_data.pop(
+            "await_delete_id",
+            None,
+        )
+
+        try:
+
+            movie_id = int(
+                update.message.text.strip()
+            )
+
+        except ValueError:
+
+            await update.message.reply_text(
+                "❌ شناسه نامعتبر است."
+            )
+
+            return
+
+        movie = database.get_movie(movie_id)
+
+        if not movie:
+
+            await update.message.reply_text(
+                "❌ فیلم پیدا نشد."
+            )
+
+            return
+
+        buttons = [
+            [
+                InlineKeyboardButton(
+                    "🗑 بله، حذف شود",
+                    callback_data=f"confirmdel:{movie_id}",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    "❌ لغو",
+                    callback_data="admin",
+                )
+            ],
+        ]
+
+        await update.message.reply_text(
+            f"⚠️ آیا فیلم زیر حذف شود؟\n\n"
+            f"🎬 {movie['title']}",
+            reply_markup=InlineKeyboardMarkup(buttons),
+        )
+
+        return
+
+    # جستجو
+    if (
+        context.user_data.get("search_admin")
+        or context.user_data.get("search_user")
+    ):
+
+        admin_search = context.user_data.pop(
+            "search_admin",
+            False,
+        )
+
+        context.user_data.pop(
+            "search_user",
+            None,
+        )
+
+        rows = database.search_movies(
+            normalize(update.message.text)
+        )
+
+        if not rows:
+
+            await update.message.reply_text(
+                "❌ فیلمی پیدا نشد."
+            )
+
+            return
+
+        buttons = []
+
+        for movie in rows:
+
+            buttons.append(
+                [
+                    InlineKeyboardButton(
+                        movie["title"],
+                        callback_data=f"movie:{movie['id']}",
+                    )
+                ]
+            )
+
+        await update.message.reply_text(
+            "🔎 نتایج جستجو:",
+            reply_markup=InlineKeyboardMarkup(buttons),
+        )
+
+        return
+
+
+# =========================================================
+# مراحل متنی ثبت فیلم
+# =========================================================
+
+async def registration_text(update, context):
+
+    text = update.message.text.strip()
+
+    state = context.user_data.get("state")
+
+    # نام فیلم
+    if state == WAIT_TITLE:
+
+        context.user_data["title"] = text
+        context.user_data["state"] = WAIT_ORIGINAL
+
+        await update.message.reply_text(
+            "📝 نام اصلی / انگلیسی فیلم را بفرست.\n"
+            "اگر نداری: /skip"
+        )
+
+        return
+
+    # نام اصلی
+    if state == WAIT_ORIGINAL:
+
+        context.user_data["original_title"] = (
+            "" if text.lower() == "/skip" else text
+        )
+
+        context.user_data["state"] = WAIT_CATEGORY
+
+        await update.message.reply_text(
+            "🎭 ژانر فیلم را بفرست.\n"
+            "مثلاً: #اکشن #درام\n\n"
+            "یا /skip"
+        )
+
+        return
+
+    # ژانر
+    if state == WAIT_CATEGORY:
+
+        context.user_data["category"] = (
+            "" if text.lower() == "/skip" else text
+        )
+
+        context.user_data["state"] = WAIT_IMDB
+
+        await update.message.reply_text(
+            "⭐ امتیاز IMDb را بفرست.\n"
+            "مثلاً: 7.5\n\n"
+            "یا /skip"
+        )
+
+        return
+
+    # IMDb
+    if state == WAIT_IMDB:
+
+        context.user_data["imdb"] = (
+            "" if text.lower() == "/skip" else text
+        )
+
+        context.user_data["state"] = WAIT_COUNTRY
+
+        await update.message.reply_text(
+            "🌍 کشور سازنده را بفرست.\n"
+            "یا /skip"
+        )
+
+        return
+
+    # کشور
+    if state == WAIT_COUNTRY:
+
+        context.user_data["country"] = (
+            "" if text.lower() == "/skip" else text
+        )
+
+        context.user_data["state"] = WAIT_DIRECTOR
+
+        await update.message.reply_text(
+            "🎬 نام کارگردان را بفرست.\n"
+            "یا /skip"
+        )
+
+        return
+
+    # کارگردان
+    if state == WAIT_DIRECTOR:
+
+        context.user_data["director"] = (
+            "" if text.lower() == "/skip" else text
+        )
+
+        context.user_data["state"] = WAIT_STARS
+
+        await update.message.reply_text(
+            "⭐ نام بازیگران را بفرست.\n"
+            "یا /skip"
+        )
+
+        return
+
+    # بازیگران
+    if state == WAIT_STARS:
+
+        context.user_data["stars"] = (
+            "" if text.lower() == "/skip" else text
+        )
+
+        context.user_data["state"] = WAIT_SYNOPSIS
+
+        await update.message.reply_text(
+            "📖 خلاصه داستان را بفرست.\n"
+            "یا /skip"
+        )
+
+        return
+
+    # خلاصه
+    if state == WAIT_SYNOPSIS:
+
+        context.user_data["synopsis"] = (
+            "" if text.lower() == "/skip" else text
+        )
+
+        context.user_data["state"] = WAIT_SUBTITLE
+
+        await update.message.reply_text(
+            "📝 وضعیت فیلم را بنویس.\n"
+            "مثلاً:\n"
+            "#زیرنویس_چسبیده_فارسی\n\n"
+            "یا /skip"
+        )
+
+        return
+
+    # وضعیت زیرنویس
+    if state == WAIT_SUBTITLE:
+
+        context.user_data["subtitle"] = (
+            "" if text.lower() == "/skip" else text
+        )
+
+        context.user_data["state"] = "poster"
+
+        await update.message.reply_text(
+            "🖼 حالا پوستر فیلم را به صورت عکس بفرست:"
+        )
+
+        return
+
+    # کیفیت
+    if state in (
+        WAIT_360,
+        WAIT_480,
+        WAIT_720,
+        WAIT_1080,
+    ):
+
+        if text.lower() == "/skip":
+
+            quality_map = {
+                WAIT_360: "360p",
+                WAIT_480: "480p",
+                WAIT_720: "720p",
+                WAIT_1080: "1080p",
+            }
+
+            quality = quality_map[state]
+
+            context.user_data.setdefault(
+                "qualities",
+                {},
+            )[quality] = None
+
+            await next_quality(
+                update,
+                context,
+                quality,
+            )
+
+        else:
+
+            await update.message.reply_text(
+                "❌ فایل کیفیت را بفرست یا /skip."
+            )
+
+        return
+
+    # تریلر
+    if state == "trailer":
+
+        if text.lower() == "/skip":
+
+            context.user_data["trailer_file_id"] = None
+            context.user_data["trailer_type"] = None
+
+            context.user_data["state"] = WAIT_360
+
+            await update.message.reply_text(
+                "📥 فایل کیفیت 360p را بفرست یا /skip:"
+            )
+
+        else:
+
+            await update.message.reply_text(
+                "🎬 تریلر را به صورت ویدیو بفرست "
+                "یا /skip."
+            )
+
+        return
+
+
+# =========================================================
+# فایل‌های دریافتی
+# =========================================================
+
+async def media_router(update, context):
+
+    user = update.effective_user
+
+    if not is_admin(user.id):
+        return
+
+    state = context.user_data.get("state")
+
+    # پوستر
+    if state == "poster":
+
+        if update.message.photo:
+
+            context.user_data["poster_file_id"] = (
+                update.message.photo[-1].file_id
+            )
+
+            context.user_data["state"] = "trailer"
+
+            await update.message.reply_text(
+                "🎬 تریلر را بفرست.\n"
+                "اگر تریلر نداری: /skip"
+            )
+
+        else:
+
+            await update.message.reply_text(
+                "❌ لطفاً پوستر را به صورت عکس بفرست."
+            )
+
+        return
+
+    # تریلر
+    if state == "trailer":
+
+        if update.message.video:
+
+            context.user_data["trailer_file_id"] = (
+                update.message.video.file_id
+            )
+
+            context.user_data["trailer_type"] = "video"
+
+        elif update.message.document:
+
+            context.user_data["trailer_file_id"] = (
+                update.message.document.file_id
+            )
+
+            context.user_data["trailer_type"] = "document"
+
+        else:
+
+            await update.message.reply_text(
+                "❌ تریلر باید ویدیو یا فایل باشد."
+            )
+
+            return
+
+        context.user_data["state"] = WAIT_360
+
+        await update.message.reply_text(
+            "📥 فایل کیفیت 360p را بفرست یا /skip:"
+        )
+
+        return
+
+    # کیفیت‌ها
+    quality_map = {
+        WAIT_360: "360p",
+        WAIT_480: "480p",
+        WAIT_720: "720p",
+        WAIT_1080: "1080p",
+    }
+
+    if state in quality_map:
+
+        quality = quality_map[state]
+
+        if update.message.video:
+
+            file_id = update.message.video.file_id
+            file_type = "video"
+
+        elif update.message.document:
+
+            file_id = update.message.document.file_id
+            file_type = "document"
+
+        else:
+
+            await update.message.reply_text(
+                "❌ فایل باید ویدیو یا document باشد."
+            )
+
+            return
+
+        context.user_data.setdefault(
+            "qualities",
+            {},
+        )[quality] = (
+            file_id,
+            file_type,
+        )
+
+        await next_quality(
+            update,
+            context,
+            quality,
+        )
+
+
+# =========================================================
+# مرحله بعد کیفیت
+# =========================================================
+
+async def next_quality(
+    update,
+    context,
+    current_quality,
+):
+
+    next_state = {
+        "360p": WAIT_480,
+        "480p": WAIT_720,
+        "720p": WAIT_1080,
+        "1080p": WAIT_CONFIRM,
+    }[current_quality]
+
+    context.user_data["state"] = next_state
+
+    if current_quality != "1080p":
+
+        next_quality_name = {
+            WAIT_480: "480p",
+            WAIT_720: "720p",
+            WAIT_1080: "1080p",
+        }[next_state]
+
+        await update.message.reply_text(
+            f"📥 فایل کیفیت {next_quality_name} را "
+            f"بفرست یا /skip:"
+        )
+
+    else:
+
+        await show_preview(
+            update,
+            context,
+        )
+
+
+# =========================================================
+# پیش‌نمایش
+# =========================================================
+
+async def show_preview(update, context):
+
+    data = context.user_data
+
+    qualities = [
+        quality
+        for quality, value
+        in data.get("qualities", {}).items()
+        if value
+    ]
+
+    if not qualities:
+
+        await update.message.reply_text(
+            "❌ حداقل یک کیفیت باید ثبت شود."
+        )
+
+        return
+
+    text = (
+        f"🎬 {data.get('title', '')}\n\n"
+        f"{data.get('original_title', '')}\n\n"
+        f"⭐ IMDb: {data.get('imdb') or '—'}\n\n"
+        f"🎭 ژانر: {data.get('category') or '—'}\n\n"
+        f"🌍 کشور: {data.get('country') or '—'}\n\n"
+        f"🎬 کارگردان:\n"
+        f"{data.get('director') or '—'}\n\n"
+        f"⭐ بازیگران:\n"
+        f"{data.get('stars') or '—'}\n\n"
+        f"📝 وضعیت:\n"
+        f"{data.get('subtitle') or '—'}\n\n"
+        f"📖 خلاصه:\n"
+        f"{data.get('synopsis') or '—'}\n\n"
+        f"📥 کیفیت‌ها:\n"
+        f"{', '.join(qualities)}"
+    )
+
+    buttons = [
+        [
+            InlineKeyboardButton(
+                "✅ ثبت و ارسال برای تأیید",
+                callback_data="register",
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                "✏️ شروع دوباره",
+                callback_data="restart",
+            ),
+            InlineKeyboardButton(
+                "❌ لغو",
+                callback_data="cancel",
+            ),
+        ],
+    ]
+
+    await update.message.reply_text(
+        "🔎 پیش‌نمایش فیلم:\n\n" + text,
+        reply_markup=InlineKeyboardMarkup(buttons),
+    )
+
+
+# =========================================================
+# ثبت فیلم
+# =========================================================
+
+async def registration_button(
+    update,
+    context,
+):
+
+    query = update.callback_query
+
+    await query.answer()
+
+    if not is_admin(query.from_user.id):
+        return
+
+    # لغو
+    if query.data == "cancel":
+
+        context.user_data.clear()
+
+        await query.message.edit_text(
+            "❌ ثبت فیلم لغو شد.",
+            reply_markup=admin_menu_markup(),
+        )
+
+        return
+
+    # شروع دوباره
+    if query.data == "restart":
+
+        context.user_data.clear()
+
+        context.user_data["state"] = WAIT_TITLE
+
+        await query.message.edit_text(
+            "🎬 نام فیلم را بفرست:"
+        )
+
+        return
+
+    # ثبت
+    if query.data == "register":
+
+        data = context.user_data
+
+        movie_code = generate_code()
+
+        movie_id = database.add_movie(
+            {
+                "code": movie_code,
+                "title": data.get("title"),
+                "original_title": data.get(
+                    "original_title"
+                ),
+                "category": data.get("category"),
+                "imdb": data.get("imdb"),
+                "country": data.get("country"),
+                "director": data.get("director"),
+                "stars": data.get("stars"),
+                "synopsis": data.get("synopsis"),
+                "subtitle": data.get("subtitle"),
+                "poster_file_id": data.get(
+                    "poster_file_id"
+                ),
+                "trailer_file_id": data.get(
+                    "trailer_file_id"
+                ),
+                "trailer_type": data.get(
+                    "trailer_type"
+                ),
+            }
+        )
+
+        for quality, item in data.get(
+            "qualities",
+            {},
+        ).items():
+
+            if item:
+
+                database.add_movie_file(
+                    movie_id,
+                    quality,
+                    item[0],
+                    item[1],
+                )
+
+        buttons = [
+            [
+                InlineKeyboardButton(
+                    "✅ انتشار",
+                    callback_data=f"publish:{movie_id}",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    "🗑 حذف",
+                    callback_data=f"confirmdel:{movie_id}",
+                )
+            ],
+        ]
+
+        link = (
+            f"https://t.me/{BOT_USERNAME}"
+            f"?start={movie_code}"
+        )
+
+        await query.message.edit_text(
+            "✅ فیلم ثبت شد!\n\n"
+            f"🎬 {data.get('title')}\n"
+            f"🔑 کد: {movie_code}\n\n"
+            f"🔗 لینک:\n{link}\n\n"
+            "⏳ وضعیت: در انتظار تأیید انتشار",
+            reply_markup=InlineKeyboardMarkup(buttons),
+        )
+
+        context.user_data.clear()
+
+
+# =========================================================
+# انتشار در کانال
+# =========================================================
+
+async def publish_movie(update, context):
+
+    query = update.callback_query
+
+    await query.answer()
+
+    if not is_admin(query.from_user.id):
+        return
+
+    movie_id = int(
+        query.data.split(":")[1]
+    )
+
+    movie = database.get_movie(movie_id)
+
+    if not movie:
+        return
+
+    files = database.get_movie_files(
+        movie_id
+    )
+
+    if not files:
+
+        await query.message.reply_text(
+            "❌ هیچ فایل کیفیتی برای این فیلم ثبت نشده."
+        )
+
+        return
+
+    qualities = [
+        file["quality"]
+        for file in files
+    ]
+
+    text = (
+        f"🎬 {movie['title']}\n\n"
+        f"{movie['original_title'] or ''}\n\n"
+        f"{movie['subtitle'] or '#فیلم'}\n\n"
+        f"⭐ امتیاز IMDb : "
+        f"{movie['imdb'] or '—'}\n\n"
+        f"🎭 ژانر: "
+        f"{movie['category'] or '—'}\n\n"
+        f"🌍 محصول کشور: "
+        f"{movie['country'] or '—'}\n\n"
+        f"🎬 کارگردان:\n"
+        f"{movie['director'] or '—'}\n\n"
+        f"⭐ ستارگان:\n"
+        f"{movie['stars'] or '—'}\n\n"
+        f"📖 خلاصه داستان:\n"
+        f"{movie['synopsis'] or '—'}\n\n"
+        "🎬 فیلم‌بین"
+    )
+
+    message_ids = []
+
+    try:
+
+        # پوستر
+        if movie["poster_file_id"]:
+
+            caption = text[:1024]
+
+            poster_message = (
+                await context.bot.send_photo(
+                    FILM_CHANNEL,
+                    movie["poster_file_id"],
+                    caption=caption,
+                )
+            )
+
+        else:
+
+            poster_message = (
+                await context.bot.send_message(
+                    FILM_CHANNEL,
+                    text[:4096],
+                )
+            )
+
+        message_ids.append(
+            poster_message.message_id
+        )
+
+        # اگر متن بیشتر از حد کپشن بود
+        if (
+            movie["poster_file_id"]
+            and len(text) > 1024
+        ):
+
+            extra_message = (
+                await context.bot.send_message(
+                    FILM_CHANNEL,
+                    text[1024:],
+                )
+            )
+
+            message_ids.append(
+                extra_message.message_id
+            )
+
+        # تریلر
+        if movie["trailer_file_id"]:
+
+            if movie["trailer_type"] == "video":
+
+                trailer_message = (
+                    await context.bot.send_video(
+                        FILM_CHANNEL,
+                        movie["trailer_file_id"],
+                        caption="🎬 تریلر",
+                    )
+                )
+
+            else:
+
+                trailer_message = (
+                    await context.bot.send_document(
+                        FILM_CHANNEL,
+                        movie["trailer_file_id"],
+                        caption="🎬 تریلر",
+                    )
+                )
+
+            message_ids.append(
+                trailer_message.message_id
+            )
+
+        # دکمه‌های کیفیت
+        buttons = []
+
+        row = []
+
+        for quality in qualities:
+
+            link = (
+                f"https://t.me/{BOT_USERNAME}"
+                f"?start={movie['code']}_{quality}"
+            )
+
+            row.append(
+                InlineKeyboardButton(
+                    quality,
+                    url=link,
+                )
+            )
+
+            if len(row) == 2:
+
+                buttons.append(row)
+
+                row = []
+
+        if row:
+            buttons.append(row)
+
+        quality_message = (
+            await context.bot.send_message(
+                FILM_CHANNEL,
+                (
+                    "📥 برای دریافت کیفیت موردنظر، "
+                    "گزینه موردنظر را انتخاب کنید:"
+                ),
+                reply_markup=InlineKeyboardMarkup(
+                    buttons
+                ),
+            )
+        )
+
+        message_ids.append(
+            quality_message.message_id
+        )
+
+        # ذخیره پیام‌های کانال
+        database.save_channel_message_ids(
+            movie_id,
+            message_ids,
+        )
+
+        # تغییر وضعیت
+        database.set_movie_status(
+            movie_id,
+            "published",
+        )
+
+        await query.message.edit_text(
+            "✅ فیلم با موفقیت در کانال فیلم‌بین منتشر شد.",
+            reply_markup=admin_menu_markup(),
+        )
+
+    except Exception as error:
+
+        print(
+            "PUBLISH ERROR:",
+            error,
+        )
+
+        await query.message.reply_text(
+            "❌ انتشار انجام نشد.\n\n"
+            "مطمئن شو ربات در کانال فیلم‌بین "
+            "ادمین باشد و اجازه ارسال پست داشته باشد."
+        )
+
+
+# =========================================================
+# نمایش فیلم از نتایج جستجو
+# =========================================================
+
+async def movie_view(update, context):
+
+    query = update.callback_query
+
+    await query.answer()
+
+    movie_id = int(
+        query.data.split(":")[1]
+    )
+
+    movie = database.get_movie(movie_id)
+
+    if not movie:
+
+        await query.message.reply_text(
+            "❌ فیلم پیدا نشد."
+        )
+
+        return
+
+    await show_membership(
+        update,
+        context,
+        movie_id,
+    )
+
+
+# =========================================================
+# حذف فیلم
+# =========================================================
+
+async def confirm_delete(update, context):
+
+    query = update.callback_query
+
+    await query.answer()
+
+    if not is_admin(query.from_user.id):
+        return
+
+    movie_id = int(
+        query.data.split(":")[1]
+    )
+
+    movie = database.get_movie(movie_id)
+
+    if not movie:
+        return
+
+    message_ids = database.get_channel_message_ids(
+        movie_id
+    )
+
+    for message_id in message_ids:
+
+        try:
+
+            await context.bot.delete_message(
+                FILM_CHANNEL,
+                int(message_id),
+            )
+
+        except Exception:
+            pass
+
+    database.delete_movie(
+        movie_id
+    )
+
+    await query.message.edit_text(
+        "✅ فیلم و رکوردهای مربوط به آن حذف شد.",
+        reply_markup=admin_menu_markup(),
+    )
+
+
+# =========================================================
+# /id
+# =========================================================
+
+async def id_command(update, context):
+
+    await update.message.reply_text(
+        "🆔 شناسه عددی شما:\n\n"
+        f"`{update.effective_user.id}`",
+        parse_mode="Markdown",
+    )
+
+
+# =========================================================
+# /skip
+# =========================================================
+
+async def skip_command(update, context):
+
+    if not is_admin(
+        update.effective_user.id
+    ):
+        return
+
+    state = context.user_data.get(
+        "state"
+    )
+
+    # تریلر
+    if state == "trailer":
+
+        context.user_data[
+            "trailer_file_id"
+        ] = None
+
+        context.user_data[
+            "trailer_type"
+        ] = None
+
+        context.user_data[
+            "state"
+        ] = WAIT_360
+
+        await update.message.reply_text(
+            "📥 فایل کیفیت 360p را بفرست یا /skip:"
+        )
+
+        return
+
+    # کیفیت‌ها
+    quality_map = {
+        WAIT_360: "360p",
+        WAIT_480: "480p",
+        WAIT_720: "720p",
+        WAIT_1080: "1080p",
+    }
+
+    if state in quality_map:
+
+        quality = quality_map[state]
+
+        context.user_data.setdefault(
+            "qualities",
+            {},
+        )[quality] = None
+
+        await next_quality(
+            update,
+            context,
+            quality,
+        )
+
+        return
+
+    # فیلدهای اختیاری
+    optional_fields = {
+        WAIT_ORIGINAL: "original_title",
+        WAIT_CATEGORY: "category",
+        WAIT_IMDB: "imdb",
+        WAIT_COUNTRY: "country",
+        WAIT_DIRECTOR: "director",
+        WAIT_STARS: "stars",
+        WAIT_SYNOPSIS: "synopsis",
+        WAIT_SUBTITLE: "subtitle",
+    }
+
+    if state in optional_fields:
+
+        field = optional_fields[state]
+
+        context.user_data[field] = ""
+
+        next_state = {
+            WAIT_ORIGINAL: WAIT_CATEGORY,
+            WAIT_CATEGORY: WAIT_IMDB,
+            WAIT_IMDB: WAIT_COUNTRY,
+            WAIT_COUNTRY: WAIT_DIRECTOR,
+            WAIT_DIRECTOR: WAIT_STARS,
+            WAIT_STARS: WAIT_SYNOPSIS,
+            WAIT_SYNOPSIS: WAIT_SUBTITLE,
+            WAIT_SUBTITLE: "poster",
+        }[state]
+
+        context.user_data["state"] = next_state
+
+        prompts = {
+            WAIT_ORIGINAL:
+                "🎭 ژانر را بفرست یا /skip",
+            WAIT_CATEGORY:
+                "⭐ امتیاز IMDb را بفرست یا /skip",
+            WAIT_IMDB:
+                "🌍 کشور سازنده را بفرست یا /skip",
+            WAIT_COUNTRY:
+                "🎬 کارگردان را بفرست یا /skip",
+            WAIT_DIRECTOR:
+                "⭐ بازیگران را بفرست یا /skip",
+            WAIT_STARS:
+                "📖 خلاصه داستان را بفرست یا /skip",
+            WAIT_SYNOPSIS:
+                "📝 وضعیت زیرنویس/دوبله را بفرست یا /skip",
+            WAIT_SUBTITLE:
+                "🖼 حالا پوستر فیلم را به صورت عکس بفرست:",
+        }
+
+        await update.message.reply_text(
+            prompts[state]
+        )
+
+        return
+
+    await update.message.reply_text(
+        "ℹ️ در این مرحله /skip کاربردی ندارد."
+    )
+
+
+# =========================================================
+# /cancel
+# =========================================================
+
+async def cancel_command(update, context):
+
+    context.user_data.clear()
+
+    await update.message.reply_text(
+        "❌ عملیات لغو شد."
+    )
+
+    if is_admin(
+        update.effective_user.id
+    ):
+
+        await admin_panel(
+            update,
+            context,
+        )
+
+
+# =========================================================
+# خطا
+# =========================================================
+
+async def error_handler(update, context):
+
+    print(
+        "BOT ERROR:",
+        context.error,
+    )
+
+
+# =========================================================
+# اجرای ربات
+# =========================================================
+
+def main():
+
+    if not BOT_TOKEN:
+
+        raise RuntimeError(
+            "BOT_TOKEN is not set in Railway Variables"
+        )
+
+    database.init_db()
+
+    application = (
+        Application
+        .builder()
+        .token(BOT_TOKEN)
+        .build()
+    )
+
+    # دستورات
+    application.add_handler(
+        CommandHandler(
+            "start",
+            start,
+        )
+    )
+
+    application.add_handler(
+        CommandHandler(
+            "id",
+            id_command,
+        )
+    )
+
+    application.add_handler(
+        CommandHandler(
+            "skip",
+            skip_command,
+        )
+    )
+
+    application.add_handler(
+        CommandHandler(
+            "cancel",
+            cancel_command,
+        )
+    )
+
+    # بررسی عضویت
+    application.add_handler(
+        CallbackQueryHandler(
+            check_membership,
+            pattern=r"^check:",
+        )
+    )
+
+    # پنل مدیریت
+    application.add_handler(
+        CallbackQueryHandler(
+            admin_button,
+            pattern=(
+                r"^(admin|add|existing|list|"
+                r"list_admin|search|search_admin|"
+                r"delete_menu|stats|close)$"
+            ),
+        )
+    )
+
+    # ثبت فیلم
+    application.add_handler(
+        CallbackQueryHandler(
+            registration_button,
+            pattern=r"^(register|restart|cancel)$",
+        )
+    )
+
+    # انتشار
+    application.add_handler(
+        CallbackQueryHandler(
+            publish_movie,
+            pattern=r"^publish:",
+        )
+    )
+
+    # حذف
+    application.add_handler(
+        CallbackQueryHandler(
+            confirm_delete,
+            pattern=r"^confirmdel:",
+        )
+    )
+
+    # نمایش فیلم
+    application.add_handler(
+        CallbackQueryHandler(
+            movie_view,
+            pattern=r"^movie:",
+        )
+    )
+
+    # فایل‌ها و عکس‌ها
+    application.add_handler(
+        MessageHandler(
+            (
+                filters.PHOTO
+                | filters.VIDEO
+                | filters.Document.ALL
+            ),
+            media_router,
+        )
+    )
+
+    # پیام‌های متنی
+    application.add_handler(
+        MessageHandler(
+            filters.TEXT & ~filters.COMMAND,
+            text_router,
+        )
+    )
+
+    application.add_error_handler(
+        error_handler
+    )
+
+    print(
+        "FilmBin bot is running..."
+    )
+
+    application.run_polling(
+        allowed_updates=Update.ALL_TYPES
+    )
+
+
+if __name__ == "__main__":
+    main()
