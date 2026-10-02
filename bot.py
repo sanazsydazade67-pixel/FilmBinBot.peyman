@@ -26,7 +26,6 @@ import database
 
 BOT_TOKEN = os.getenv("BOT_TOKEN", "")
 
-# بعداً در Railway قرار می‌دهیم
 ADMIN_IDS = {
     int(x.strip())
     for x in os.getenv("ADMIN_IDS", "").split(",")
@@ -86,6 +85,7 @@ def is_admin(user_id):
 
 def generate_code():
     chars = string.ascii_letters + string.digits
+
     return "film_" + "".join(
         secrets.choice(chars)
         for _ in range(8)
@@ -93,6 +93,7 @@ def generate_code():
 
 
 def normalize(text):
+
     if not text:
         return ""
 
@@ -106,18 +107,71 @@ def normalize(text):
 
 
 # =========================================================
+# بررسی واقعی عضویت کاربر
+# =========================================================
+
+async def get_missing_memberships(
+    bot,
+    user_id,
+):
+
+    missing = []
+
+    for chat, name in REQUIRED_CHATS:
+
+        try:
+
+            member = await bot.get_chat_member(
+                chat,
+                user_id,
+            )
+
+            # کاربر از کانال/گروه خارج شده یا بن شده
+            if member.status in (
+                ChatMemberStatus.LEFT,
+                ChatMemberStatus.BANNED,
+            ):
+
+                missing.append(name)
+
+            # برای وضعیت Restricted
+            elif (
+                member.status == ChatMemberStatus.RESTRICTED
+                and hasattr(member, "is_member")
+                and not member.is_member
+            ):
+
+                missing.append(name)
+
+        except Exception as error:
+
+            print(
+                f"MEMBERSHIP CHECK ERROR "
+                f"{chat}: {error}"
+            )
+
+            missing.append(name)
+
+    return missing
+
+
+# =========================================================
 # حذف خودکار
 # =========================================================
 
 async def delete_later(context):
+
     job = context.job
 
     try:
+
         await context.bot.delete_message(
             chat_id=job.chat_id,
             message_id=job.data,
         )
+
     except Exception:
+
         pass
 
 
@@ -125,35 +179,49 @@ async def delete_later(context):
 # /start
 # =========================================================
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def start(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+):
 
     user = update.effective_user
 
     database.add_user(user.id)
 
+    # -----------------------------------------------------
     # /start بدون لینک
+    # -----------------------------------------------------
+
     if not context.args:
-        await send_welcome(update, context)
+
+        await send_welcome(
+            update,
+            context,
+        )
+
         return
 
-    # دریافت کد از لینک
+    # -----------------------------------------------------
+    # دریافت کد فیلم
+    # -----------------------------------------------------
+
     start_code = context.args[0].strip()
 
-    print("START PARAMETER:", start_code)
-
-    # مثال:
-    # film_AbC12345
-    # film_AbC12345_360p
-    # film_AbC12345_480p
-    # film_AbC12345_720p
-    # film_AbC12345_1080p
+    print(
+        "START PARAMETER:",
+        start_code,
+    )
 
     quality = None
+
     movie_code = start_code
 
     parts = start_code.split("_")
 
+    # -----------------------------------------------------
     # تشخیص کیفیت
+    # -----------------------------------------------------
+
     if len(parts) >= 3:
 
         possible_quality = parts[-1].lower()
@@ -167,16 +235,32 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             quality = possible_quality
 
-            # حذف کیفیت از کد فیلم
-            movie_code = "_".join(parts[:-1])
+            movie_code = "_".join(
+                parts[:-1]
+            )
 
-    print("MOVIE CODE:", movie_code)
-    print("QUALITY:", quality)
+    print(
+        "MOVIE CODE:",
+        movie_code,
+    )
 
-    # پیدا کردن فیلم در دیتابیس
-    movie = database.get_movie_by_code(movie_code)
+    print(
+        "QUALITY:",
+        quality,
+    )
 
-    print("MOVIE FOUND:", bool(movie))
+    # -----------------------------------------------------
+    # پیدا کردن فیلم
+    # -----------------------------------------------------
+
+    movie = database.get_movie_by_code(
+        movie_code
+    )
+
+    print(
+        "MOVIE FOUND:",
+        bool(movie),
+    )
 
     if not movie:
 
@@ -186,18 +270,60 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         return
 
-    # نمایش عضویت اجباری
+    # -----------------------------------------------------
+    # بررسی عضویت واقعی در همین لحظه
+    # -----------------------------------------------------
+
+    missing = await get_missing_memberships(
+        context.bot,
+        user.id,
+    )
+
+    # -----------------------------------------------------
+    # اگر عضو همه است → مستقیم فیلم
+    # -----------------------------------------------------
+
+    if not missing:
+
+        print(
+            "USER IS MEMBER OF ALL REQUIRED CHATS:",
+            user.id,
+        )
+
+        await send_movie_to_user(
+            user.id,
+            movie["id"],
+            quality,
+            context,
+        )
+
+        return
+
+    # -----------------------------------------------------
+    # اگر عضو نیست → نمایش صفحه عضویت
+    # -----------------------------------------------------
+
+    print(
+        "MISSING MEMBERSHIPS:",
+        missing,
+    )
+
     await show_membership(
         update,
         context,
         movie["id"],
         quality,
     )
+
+
 # =========================================================
 # خوش‌آمدگویی
 # =========================================================
 
-async def send_welcome(update, context):
+async def send_welcome(
+    update,
+    context,
+):
 
     user = update.effective_user
 
@@ -225,6 +351,7 @@ async def send_welcome(update, context):
     ]
 
     if is_admin(user.id):
+
         buttons.append(
             [
                 InlineKeyboardButton(
@@ -236,7 +363,9 @@ async def send_welcome(update, context):
 
     msg = await update.message.reply_text(
         text,
-        reply_markup=InlineKeyboardMarkup(buttons),
+        reply_markup=InlineKeyboardMarkup(
+            buttons
+        ),
     )
 
     context.job_queue.run_once(
@@ -267,7 +396,10 @@ async def show_membership(
             [
                 InlineKeyboardButton(
                     f"📢 عضویت در {name}",
-                    url=f"https://t.me/{chat.lstrip('@')}",
+                    url=(
+                        f"https://t.me/"
+                        f"{chat.lstrip('@')}"
+                    ),
                 )
             ]
         )
@@ -279,7 +411,9 @@ async def show_membership(
             InlineKeyboardButton(
                 "✅ بررسی عضویت",
                 callback_data=(
-                    f"check:{movie_id}:{quality_value}"
+                    f"check:"
+                    f"{movie_id}:"
+                    f"{quality_value}"
                 ),
             )
         ]
@@ -297,14 +431,18 @@ async def show_membership(
 
         await update.callback_query.message.reply_text(
             text,
-            reply_markup=InlineKeyboardMarkup(buttons),
+            reply_markup=InlineKeyboardMarkup(
+                buttons
+            ),
         )
 
     else:
 
         await update.message.reply_text(
             text,
-            reply_markup=InlineKeyboardMarkup(buttons),
+            reply_markup=InlineKeyboardMarkup(
+                buttons
+            ),
         )
 
 
@@ -312,11 +450,12 @@ async def show_membership(
 # بررسی عضویت
 # =========================================================
 
-async def check_membership(update, context):
+async def check_membership(
+    update,
+    context,
+):
 
     query = update.callback_query
-
-    await query.answer()
 
     _, movie_id, quality = query.data.split(
         ":",
@@ -325,46 +464,56 @@ async def check_membership(update, context):
 
     movie_id = int(movie_id)
 
-    missing = []
+    user_id = query.from_user.id
 
-    for chat, name in REQUIRED_CHATS:
+    # -----------------------------------------------------
+    # بررسی واقعی عضویت
+    # -----------------------------------------------------
 
-        try:
+    missing = await get_missing_memberships(
+        context.bot,
+        user_id,
+    )
 
-            member = await context.bot.get_chat_member(
-                chat,
-                query.from_user.id,
-            )
-
-            if member.status in (
-                ChatMemberStatus.LEFT,
-                ChatMemberStatus.BANNED,
-            ):
-                missing.append(name)
-
-        except Exception:
-
-            missing.append(name)
+    # -----------------------------------------------------
+    # هنوز عضو کامل نیست
+    # -----------------------------------------------------
 
     if missing:
 
         await query.answer(
-            "❌ هنوز عضویت شما کامل نشده است.",
+            "❌ هنوز عضویت شما در همه موارد کامل نشده است.",
             show_alert=True,
         )
 
         return
 
+    # -----------------------------------------------------
+    # عضویت کامل است
+    # -----------------------------------------------------
+
+    await query.answer(
+        "✅ عضویت شما تأیید شد."
+    )
+
     try:
+
         await query.message.delete()
+
     except Exception:
+
         pass
 
     if quality == "all":
+
         quality = None
 
+    # -----------------------------------------------------
+    # ارسال فیلم
+    # -----------------------------------------------------
+
     await send_movie_to_user(
-        query.from_user.id,
+        user_id,
         movie_id,
         quality,
         context,
@@ -382,7 +531,9 @@ async def send_movie_to_user(
     context,
 ):
 
-    movie = database.get_movie(movie_id)
+    movie = database.get_movie(
+        movie_id
+    )
 
     if not movie:
 
@@ -402,7 +553,9 @@ async def send_movie_to_user(
 
         return
 
-    files = database.get_movie_files(movie_id)
+    files = database.get_movie_files(
+        movie_id
+    )
 
     selected = None
 
@@ -411,9 +564,13 @@ async def send_movie_to_user(
         if quality and file["quality"] == quality:
 
             selected = file
+
             break
 
+    # -----------------------------------------------------
     # اگر کیفیت مشخص نشده
+    # -----------------------------------------------------
+
     if not quality:
 
         buttons = []
@@ -422,7 +579,8 @@ async def send_movie_to_user(
 
             link = (
                 f"https://t.me/{BOT_USERNAME}"
-                f"?start={movie['code']}_{file['quality']}"
+                f"?start="
+                f"{movie['code']}_{file['quality']}"
             )
 
             buttons.append(
@@ -440,10 +598,16 @@ async def send_movie_to_user(
                 f"🎬 {movie['title']}\n\n"
                 "📥 کیفیت موردنظر را انتخاب کنید:"
             ),
-            reply_markup=InlineKeyboardMarkup(buttons),
+            reply_markup=InlineKeyboardMarkup(
+                buttons
+            ),
         )
 
         return
+
+    # -----------------------------------------------------
+    # کیفیت موجود نیست
+    # -----------------------------------------------------
 
     if not selected:
 
@@ -453,6 +617,10 @@ async def send_movie_to_user(
         )
 
         return
+
+    # -----------------------------------------------------
+    # ارسال فایل
+    # -----------------------------------------------------
 
     try:
 
@@ -484,7 +652,12 @@ async def send_movie_to_user(
             quality,
         )
 
-    except Exception:
+    except Exception as error:
+
+        print(
+            "SEND MOVIE ERROR:",
+            error,
+        )
 
         await context.bot.send_message(
             user_id,
@@ -546,7 +719,10 @@ def admin_menu_markup():
     )
 
 
-async def admin_panel(update, context):
+async def admin_panel(
+    update,
+    context,
+):
 
     if not is_admin(
         update.effective_user.id
@@ -585,7 +761,10 @@ async def admin_panel(update, context):
 # دکمه‌های پنل
 # =========================================================
 
-async def admin_button(update, context):
+async def admin_button(
+    update,
+    context,
+):
 
     query = update.callback_query
 
@@ -604,7 +783,10 @@ async def admin_button(update, context):
 
     data = query.data
 
+    # -----------------------------------------------------
     # پنل
+    # -----------------------------------------------------
+
     if data == "admin":
 
         await admin_panel(
@@ -614,12 +796,19 @@ async def admin_button(update, context):
 
         return
 
+    # -----------------------------------------------------
     # افزودن فیلم
-    if data in ("add", "existing"):
+    # -----------------------------------------------------
+
+    if data in (
+        "add",
+        "existing",
+    ):
 
         context.user_data.clear()
 
         context.user_data["mode"] = data
+
         context.user_data["state"] = WAIT_TITLE
 
         if data == "existing":
@@ -639,7 +828,10 @@ async def admin_button(update, context):
 
         return
 
+    # -----------------------------------------------------
     # لیست فیلم‌های کاربر
+    # -----------------------------------------------------
+
     if data == "list":
 
         rows = database.search_movies("")
@@ -661,19 +853,26 @@ async def admin_button(update, context):
                 [
                     InlineKeyboardButton(
                         movie["title"],
-                        callback_data=f"movie:{movie['id']}",
+                        callback_data=(
+                            f"movie:{movie['id']}"
+                        ),
                     )
                 ]
             )
 
         await query.message.edit_text(
             "📚 فیلم‌های منتشرشده:",
-            reply_markup=InlineKeyboardMarkup(buttons),
+            reply_markup=InlineKeyboardMarkup(
+                buttons
+            ),
         )
 
         return
 
+    # -----------------------------------------------------
     # لیست مدیریت
+    # -----------------------------------------------------
+
     if data == "list_admin":
 
         rows = database.get_all_movies()
@@ -704,7 +903,10 @@ async def admin_button(update, context):
 
         return
 
+    # -----------------------------------------------------
     # آمار
+    # -----------------------------------------------------
+
     if data == "stats":
 
         stats = database.get_stats()
@@ -725,8 +927,14 @@ async def admin_button(update, context):
 
         return
 
+    # -----------------------------------------------------
     # جستجو
-    if data in ("search", "search_admin"):
+    # -----------------------------------------------------
+
+    if data in (
+        "search",
+        "search_admin",
+    ):
 
         context.user_data["search_admin"] = (
             data == "search_admin"
@@ -742,10 +950,15 @@ async def admin_button(update, context):
 
         return
 
+    # -----------------------------------------------------
     # حذف
+    # -----------------------------------------------------
+
     if data == "delete_menu":
 
-        context.user_data["await_delete_id"] = True
+        context.user_data[
+            "await_delete_id"
+        ] = True
 
         await query.message.reply_text(
             "🗑 شناسه فیلم را بفرست.\n\n"
@@ -755,12 +968,18 @@ async def admin_button(update, context):
 
         return
 
+    # -----------------------------------------------------
     # بستن
+    # -----------------------------------------------------
+
     if data == "close":
 
         try:
+
             await query.message.delete()
+
         except Exception:
+
             pass
 
         return
@@ -770,15 +989,23 @@ async def admin_button(update, context):
 # متن‌های دریافتی
 # =========================================================
 
-async def text_router(update, context):
+async def text_router(
+    update,
+    context,
+):
 
     user = update.effective_user
 
     database.add_user(user.id)
 
-    state = context.user_data.get("state")
+    state = context.user_data.get(
+        "state"
+    )
 
-    # اگر در حال ثبت فیلم هستیم
+    # -----------------------------------------------------
+    # ثبت فیلم
+    # -----------------------------------------------------
+
     if state in (
         WAIT_TITLE,
         WAIT_ORIGINAL,
@@ -806,9 +1033,14 @@ async def text_router(update, context):
             context,
         )
 
+    # -----------------------------------------------------
     # حذف فیلم
+    # -----------------------------------------------------
+
     if (
-        context.user_data.get("await_delete_id")
+        context.user_data.get(
+            "await_delete_id"
+        )
         and is_admin(user.id)
     ):
 
@@ -831,7 +1063,9 @@ async def text_router(update, context):
 
             return
 
-        movie = database.get_movie(movie_id)
+        movie = database.get_movie(
+            movie_id
+        )
 
         if not movie:
 
@@ -845,7 +1079,9 @@ async def text_router(update, context):
             [
                 InlineKeyboardButton(
                     "🗑 بله، حذف شود",
-                    callback_data=f"confirmdel:{movie_id}",
+                    callback_data=(
+                        f"confirmdel:{movie_id}"
+                    ),
                 )
             ],
             [
@@ -859,15 +1095,24 @@ async def text_router(update, context):
         await update.message.reply_text(
             f"⚠️ آیا فیلم زیر حذف شود؟\n\n"
             f"🎬 {movie['title']}",
-            reply_markup=InlineKeyboardMarkup(buttons),
+            reply_markup=InlineKeyboardMarkup(
+                buttons
+            ),
         )
 
         return
 
+    # -----------------------------------------------------
     # جستجو
+    # -----------------------------------------------------
+
     if (
-        context.user_data.get("search_admin")
-        or context.user_data.get("search_user")
+        context.user_data.get(
+            "search_admin"
+        )
+        or context.user_data.get(
+            "search_user"
+        )
     ):
 
         admin_search = context.user_data.pop(
@@ -881,7 +1126,9 @@ async def text_router(update, context):
         )
 
         rows = database.search_movies(
-            normalize(update.message.text)
+            normalize(
+                update.message.text
+            )
         )
 
         if not rows:
@@ -900,14 +1147,18 @@ async def text_router(update, context):
                 [
                     InlineKeyboardButton(
                         movie["title"],
-                        callback_data=f"movie:{movie['id']}",
+                        callback_data=(
+                            f"movie:{movie['id']}"
+                        ),
                     )
                 ]
             )
 
         await update.message.reply_text(
             "🔎 نتایج جستجو:",
-            reply_markup=InlineKeyboardMarkup(buttons),
+            reply_markup=InlineKeyboardMarkup(
+                buttons
+            ),
         )
 
         return
@@ -917,16 +1168,25 @@ async def text_router(update, context):
 # مراحل متنی ثبت فیلم
 # =========================================================
 
-async def registration_text(update, context):
+async def registration_text(
+    update,
+    context,
+):
 
     text = update.message.text.strip()
 
-    state = context.user_data.get("state")
+    state = context.user_data.get(
+        "state"
+    )
 
+    # -----------------------------------------------------
     # نام فیلم
+    # -----------------------------------------------------
+
     if state == WAIT_TITLE:
 
         context.user_data["title"] = text
+
         context.user_data["state"] = WAIT_ORIGINAL
 
         await update.message.reply_text(
@@ -936,11 +1196,18 @@ async def registration_text(update, context):
 
         return
 
+    # -----------------------------------------------------
     # نام اصلی
+    # -----------------------------------------------------
+
     if state == WAIT_ORIGINAL:
 
-        context.user_data["original_title"] = (
-            "" if text.lower() == "/skip" else text
+        context.user_data[
+            "original_title"
+        ] = (
+            ""
+            if text.lower() == "/skip"
+            else text
         )
 
         context.user_data["state"] = WAIT_CATEGORY
@@ -953,11 +1220,16 @@ async def registration_text(update, context):
 
         return
 
+    # -----------------------------------------------------
     # ژانر
+    # -----------------------------------------------------
+
     if state == WAIT_CATEGORY:
 
         context.user_data["category"] = (
-            "" if text.lower() == "/skip" else text
+            ""
+            if text.lower() == "/skip"
+            else text
         )
 
         context.user_data["state"] = WAIT_IMDB
@@ -970,11 +1242,16 @@ async def registration_text(update, context):
 
         return
 
+    # -----------------------------------------------------
     # IMDb
+    # -----------------------------------------------------
+
     if state == WAIT_IMDB:
 
         context.user_data["imdb"] = (
-            "" if text.lower() == "/skip" else text
+            ""
+            if text.lower() == "/skip"
+            else text
         )
 
         context.user_data["state"] = WAIT_COUNTRY
@@ -986,11 +1263,16 @@ async def registration_text(update, context):
 
         return
 
+    # -----------------------------------------------------
     # کشور
+    # -----------------------------------------------------
+
     if state == WAIT_COUNTRY:
 
         context.user_data["country"] = (
-            "" if text.lower() == "/skip" else text
+            ""
+            if text.lower() == "/skip"
+            else text
         )
 
         context.user_data["state"] = WAIT_DIRECTOR
@@ -1002,11 +1284,16 @@ async def registration_text(update, context):
 
         return
 
+    # -----------------------------------------------------
     # کارگردان
+    # -----------------------------------------------------
+
     if state == WAIT_DIRECTOR:
 
         context.user_data["director"] = (
-            "" if text.lower() == "/skip" else text
+            ""
+            if text.lower() == "/skip"
+            else text
         )
 
         context.user_data["state"] = WAIT_STARS
@@ -1018,11 +1305,16 @@ async def registration_text(update, context):
 
         return
 
+    # -----------------------------------------------------
     # بازیگران
+    # -----------------------------------------------------
+
     if state == WAIT_STARS:
 
         context.user_data["stars"] = (
-            "" if text.lower() == "/skip" else text
+            ""
+            if text.lower() == "/skip"
+            else text
         )
 
         context.user_data["state"] = WAIT_SYNOPSIS
@@ -1034,11 +1326,16 @@ async def registration_text(update, context):
 
         return
 
+    # -----------------------------------------------------
     # خلاصه
+    # -----------------------------------------------------
+
     if state == WAIT_SYNOPSIS:
 
         context.user_data["synopsis"] = (
-            "" if text.lower() == "/skip" else text
+            ""
+            if text.lower() == "/skip"
+            else text
         )
 
         context.user_data["state"] = WAIT_SUBTITLE
@@ -1052,11 +1349,16 @@ async def registration_text(update, context):
 
         return
 
-    # وضعیت زیرنویس
+    # -----------------------------------------------------
+    # زیرنویس
+    # -----------------------------------------------------
+
     if state == WAIT_SUBTITLE:
 
         context.user_data["subtitle"] = (
-            "" if text.lower() == "/skip" else text
+            ""
+            if text.lower() == "/skip"
+            else text
         )
 
         context.user_data["state"] = "poster"
@@ -1067,7 +1369,10 @@ async def registration_text(update, context):
 
         return
 
+    # -----------------------------------------------------
     # کیفیت
+    # -----------------------------------------------------
+
     if state in (
         WAIT_360,
         WAIT_480,
@@ -1105,13 +1410,21 @@ async def registration_text(update, context):
 
         return
 
+    # -----------------------------------------------------
     # تریلر
+    # -----------------------------------------------------
+
     if state == "trailer":
 
         if text.lower() == "/skip":
 
-            context.user_data["trailer_file_id"] = None
-            context.user_data["trailer_type"] = None
+            context.user_data[
+                "trailer_file_id"
+            ] = None
+
+            context.user_data[
+                "trailer_type"
+            ] = None
 
             context.user_data["state"] = WAIT_360
 
@@ -1133,23 +1446,32 @@ async def registration_text(update, context):
 # فایل‌های دریافتی
 # =========================================================
 
-async def media_router(update, context):
+async def media_router(
+    update,
+    context,
+):
 
     user = update.effective_user
 
     if not is_admin(user.id):
+
         return
 
-    state = context.user_data.get("state")
+    state = context.user_data.get(
+        "state"
+    )
 
+    # -----------------------------------------------------
     # پوستر
+    # -----------------------------------------------------
+
     if state == "poster":
 
         if update.message.photo:
 
-            context.user_data["poster_file_id"] = (
-                update.message.photo[-1].file_id
-            )
+            context.user_data[
+                "poster_file_id"
+            ] = update.message.photo[-1].file_id
 
             context.user_data["state"] = "trailer"
 
@@ -1166,24 +1488,31 @@ async def media_router(update, context):
 
         return
 
+    # -----------------------------------------------------
     # تریلر
+    # -----------------------------------------------------
+
     if state == "trailer":
 
         if update.message.video:
 
-            context.user_data["trailer_file_id"] = (
-                update.message.video.file_id
-            )
+            context.user_data[
+                "trailer_file_id"
+            ] = update.message.video.file_id
 
-            context.user_data["trailer_type"] = "video"
+            context.user_data[
+                "trailer_type"
+            ] = "video"
 
         elif update.message.document:
 
-            context.user_data["trailer_file_id"] = (
-                update.message.document.file_id
-            )
+            context.user_data[
+                "trailer_file_id"
+            ] = update.message.document.file_id
 
-            context.user_data["trailer_type"] = "document"
+            context.user_data[
+                "trailer_type"
+            ] = "document"
 
         else:
 
@@ -1201,7 +1530,10 @@ async def media_router(update, context):
 
         return
 
+    # -----------------------------------------------------
     # کیفیت‌ها
+    # -----------------------------------------------------
+
     quality_map = {
         WAIT_360: "360p",
         WAIT_480: "480p",
@@ -1216,11 +1548,13 @@ async def media_router(update, context):
         if update.message.video:
 
             file_id = update.message.video.file_id
+
             file_type = "video"
 
         elif update.message.document:
 
             file_id = update.message.document.file_id
+
             file_type = "document"
 
         else:
@@ -1290,14 +1624,20 @@ async def next_quality(
 # پیش‌نمایش
 # =========================================================
 
-async def show_preview(update, context):
+async def show_preview(
+    update,
+    context,
+):
 
     data = context.user_data
 
     qualities = [
         quality
         for quality, value
-        in data.get("qualities", {}).items()
+        in data.get(
+            "qualities",
+            {},
+        ).items()
         if value
     ]
 
@@ -1348,7 +1688,9 @@ async def show_preview(update, context):
 
     await update.message.reply_text(
         "🔎 پیش‌نمایش فیلم:\n\n" + text,
-        reply_markup=InlineKeyboardMarkup(buttons),
+        reply_markup=InlineKeyboardMarkup(
+            buttons
+        ),
     )
 
 
@@ -1365,10 +1707,16 @@ async def registration_button(
 
     await query.answer()
 
-    if not is_admin(query.from_user.id):
+    if not is_admin(
+        query.from_user.id
+    ):
+
         return
 
+    # -----------------------------------------------------
     # لغو
+    # -----------------------------------------------------
+
     if query.data == "cancel":
 
         context.user_data.clear()
@@ -1380,7 +1728,10 @@ async def registration_button(
 
         return
 
+    # -----------------------------------------------------
     # شروع دوباره
+    # -----------------------------------------------------
+
     if query.data == "restart":
 
         context.user_data.clear()
@@ -1393,7 +1744,10 @@ async def registration_button(
 
         return
 
+    # -----------------------------------------------------
     # ثبت
+    # -----------------------------------------------------
+
     if query.data == "register":
 
         data = context.user_data
@@ -1444,13 +1798,17 @@ async def registration_button(
             [
                 InlineKeyboardButton(
                     "✅ انتشار",
-                    callback_data=f"publish:{movie_id}",
+                    callback_data=(
+                        f"publish:{movie_id}"
+                    ),
                 )
             ],
             [
                 InlineKeyboardButton(
                     "🗑 حذف",
-                    callback_data=f"confirmdel:{movie_id}",
+                    callback_data=(
+                        f"confirmdel:{movie_id}"
+                    ),
                 )
             ],
         ]
@@ -1466,7 +1824,9 @@ async def registration_button(
             f"🔑 کد: {movie_code}\n\n"
             f"🔗 لینک:\n{link}\n\n"
             "⏳ وضعیت: در انتظار تأیید انتشار",
-            reply_markup=InlineKeyboardMarkup(buttons),
+            reply_markup=InlineKeyboardMarkup(
+                buttons
+            ),
         )
 
         context.user_data.clear()
@@ -1476,22 +1836,31 @@ async def registration_button(
 # انتشار در کانال
 # =========================================================
 
-async def publish_movie(update, context):
+async def publish_movie(
+    update,
+    context,
+):
 
     query = update.callback_query
 
     await query.answer()
 
-    if not is_admin(query.from_user.id):
+    if not is_admin(
+        query.from_user.id
+    ):
+
         return
 
     movie_id = int(
         query.data.split(":")[1]
     )
 
-    movie = database.get_movie(movie_id)
+    movie = database.get_movie(
+        movie_id
+    )
 
     if not movie:
+
         return
 
     files = database.get_movie_files(
@@ -1534,7 +1903,10 @@ async def publish_movie(update, context):
 
     try:
 
+        # -------------------------------------------------
         # پوستر
+        # -------------------------------------------------
+
         if movie["poster_file_id"]:
 
             caption = text[:1024]
@@ -1560,7 +1932,10 @@ async def publish_movie(update, context):
             poster_message.message_id
         )
 
-        # اگر متن بیشتر از حد کپشن بود
+        # -------------------------------------------------
+        # متن اضافی
+        # -------------------------------------------------
+
         if (
             movie["poster_file_id"]
             and len(text) > 1024
@@ -1577,7 +1952,10 @@ async def publish_movie(update, context):
                 extra_message.message_id
             )
 
+        # -------------------------------------------------
         # تریلر
+        # -------------------------------------------------
+
         if movie["trailer_file_id"]:
 
             if movie["trailer_type"] == "video":
@@ -1604,7 +1982,10 @@ async def publish_movie(update, context):
                 trailer_message.message_id
             )
 
+        # -------------------------------------------------
         # دکمه‌های کیفیت
+        # -------------------------------------------------
+
         buttons = []
 
         row = []
@@ -1613,7 +1994,8 @@ async def publish_movie(update, context):
 
             link = (
                 f"https://t.me/{BOT_USERNAME}"
-                f"?start={movie['code']}_{quality}"
+                f"?start="
+                f"{movie['code']}_{quality}"
             )
 
             row.append(
@@ -1630,6 +2012,7 @@ async def publish_movie(update, context):
                 row = []
 
         if row:
+
             buttons.append(row)
 
         quality_message = (
@@ -1649,13 +2032,19 @@ async def publish_movie(update, context):
             quality_message.message_id
         )
 
+        # -------------------------------------------------
         # ذخیره پیام‌های کانال
+        # -------------------------------------------------
+
         database.save_channel_message_ids(
             movie_id,
             message_ids,
         )
 
+        # -------------------------------------------------
         # تغییر وضعیت
+        # -------------------------------------------------
+
         database.set_movie_status(
             movie_id,
             "published",
@@ -1684,7 +2073,10 @@ async def publish_movie(update, context):
 # نمایش فیلم از نتایج جستجو
 # =========================================================
 
-async def movie_view(update, context):
+async def movie_view(
+    update,
+    context,
+):
 
     query = update.callback_query
 
@@ -1694,7 +2086,9 @@ async def movie_view(update, context):
         query.data.split(":")[1]
     )
 
-    movie = database.get_movie(movie_id)
+    movie = database.get_movie(
+        movie_id
+    )
 
     if not movie:
 
@@ -1704,6 +2098,30 @@ async def movie_view(update, context):
 
         return
 
+    user_id = query.from_user.id
+
+    # -----------------------------------------------------
+    # عضویت واقعی را بررسی کن
+    # -----------------------------------------------------
+
+    missing = await get_missing_memberships(
+        context.bot,
+        user_id,
+    )
+
+    # اگر عضو همه است
+    if not missing:
+
+        await send_movie_to_user(
+            user_id,
+            movie_id,
+            None,
+            context,
+        )
+
+        return
+
+    # اگر عضو نیست
     await show_membership(
         update,
         context,
@@ -1715,22 +2133,31 @@ async def movie_view(update, context):
 # حذف فیلم
 # =========================================================
 
-async def confirm_delete(update, context):
+async def confirm_delete(
+    update,
+    context,
+):
 
     query = update.callback_query
 
     await query.answer()
 
-    if not is_admin(query.from_user.id):
+    if not is_admin(
+        query.from_user.id
+    ):
+
         return
 
     movie_id = int(
         query.data.split(":")[1]
     )
 
-    movie = database.get_movie(movie_id)
+    movie = database.get_movie(
+        movie_id
+    )
 
     if not movie:
+
         return
 
     message_ids = database.get_channel_message_ids(
@@ -1747,6 +2174,7 @@ async def confirm_delete(update, context):
             )
 
         except Exception:
+
             pass
 
     database.delete_movie(
@@ -1763,7 +2191,10 @@ async def confirm_delete(update, context):
 # /id
 # =========================================================
 
-async def id_command(update, context):
+async def id_command(
+    update,
+    context,
+):
 
     await update.message.reply_text(
         "🆔 شناسه عددی شما:\n\n"
@@ -1776,18 +2207,25 @@ async def id_command(update, context):
 # /skip
 # =========================================================
 
-async def skip_command(update, context):
+async def skip_command(
+    update,
+    context,
+):
 
     if not is_admin(
         update.effective_user.id
     ):
+
         return
 
     state = context.user_data.get(
         "state"
     )
 
+    # -----------------------------------------------------
     # تریلر
+    # -----------------------------------------------------
+
     if state == "trailer":
 
         context.user_data[
@@ -1808,7 +2246,10 @@ async def skip_command(update, context):
 
         return
 
+    # -----------------------------------------------------
     # کیفیت‌ها
+    # -----------------------------------------------------
+
     quality_map = {
         WAIT_360: "360p",
         WAIT_480: "480p",
@@ -1833,7 +2274,10 @@ async def skip_command(update, context):
 
         return
 
+    # -----------------------------------------------------
     # فیلدهای اختیاری
+    # -----------------------------------------------------
+
     optional_fields = {
         WAIT_ORIGINAL: "original_title",
         WAIT_CATEGORY: "category",
@@ -1867,18 +2311,25 @@ async def skip_command(update, context):
         prompts = {
             WAIT_ORIGINAL:
                 "🎭 ژانر را بفرست یا /skip",
+
             WAIT_CATEGORY:
                 "⭐ امتیاز IMDb را بفرست یا /skip",
+
             WAIT_IMDB:
                 "🌍 کشور سازنده را بفرست یا /skip",
+
             WAIT_COUNTRY:
                 "🎬 کارگردان را بفرست یا /skip",
+
             WAIT_DIRECTOR:
                 "⭐ بازیگران را بفرست یا /skip",
+
             WAIT_STARS:
                 "📖 خلاصه داستان را بفرست یا /skip",
+
             WAIT_SYNOPSIS:
                 "📝 وضعیت زیرنویس/دوبله را بفرست یا /skip",
+
             WAIT_SUBTITLE:
                 "🖼 حالا پوستر فیلم را به صورت عکس بفرست:",
         }
@@ -1898,7 +2349,10 @@ async def skip_command(update, context):
 # /cancel
 # =========================================================
 
-async def cancel_command(update, context):
+async def cancel_command(
+    update,
+    context,
+):
 
     context.user_data.clear()
 
@@ -1920,7 +2374,10 @@ async def cancel_command(update, context):
 # خطا
 # =========================================================
 
-async def error_handler(update, context):
+async def error_handler(
+    update,
+    context,
+):
 
     print(
         "BOT ERROR:",
@@ -1940,6 +2397,7 @@ def main():
             "BOT_TOKEN is not set in Railway Variables"
         )
 
+    # ساخت/بررسی دیتابیس
     database.init_db()
 
     application = (
@@ -1949,7 +2407,10 @@ def main():
         .build()
     )
 
+    # -----------------------------------------------------
     # دستورات
+    # -----------------------------------------------------
+
     application.add_handler(
         CommandHandler(
             "start",
@@ -1978,7 +2439,10 @@ def main():
         )
     )
 
+    # -----------------------------------------------------
     # بررسی عضویت
+    # -----------------------------------------------------
+
     application.add_handler(
         CallbackQueryHandler(
             check_membership,
@@ -1986,7 +2450,10 @@ def main():
         )
     )
 
+    # -----------------------------------------------------
     # پنل مدیریت
+    # -----------------------------------------------------
+
     application.add_handler(
         CallbackQueryHandler(
             admin_button,
@@ -1998,7 +2465,10 @@ def main():
         )
     )
 
+    # -----------------------------------------------------
     # ثبت فیلم
+    # -----------------------------------------------------
+
     application.add_handler(
         CallbackQueryHandler(
             registration_button,
@@ -2006,7 +2476,10 @@ def main():
         )
     )
 
+    # -----------------------------------------------------
     # انتشار
+    # -----------------------------------------------------
+
     application.add_handler(
         CallbackQueryHandler(
             publish_movie,
@@ -2014,7 +2487,10 @@ def main():
         )
     )
 
+    # -----------------------------------------------------
     # حذف
+    # -----------------------------------------------------
+
     application.add_handler(
         CallbackQueryHandler(
             confirm_delete,
@@ -2022,7 +2498,10 @@ def main():
         )
     )
 
+    # -----------------------------------------------------
     # نمایش فیلم
+    # -----------------------------------------------------
+
     application.add_handler(
         CallbackQueryHandler(
             movie_view,
@@ -2030,7 +2509,10 @@ def main():
         )
     )
 
+    # -----------------------------------------------------
     # فایل‌ها و عکس‌ها
+    # -----------------------------------------------------
+
     application.add_handler(
         MessageHandler(
             (
@@ -2042,7 +2524,10 @@ def main():
         )
     )
 
+    # -----------------------------------------------------
     # پیام‌های متنی
+    # -----------------------------------------------------
+
     application.add_handler(
         MessageHandler(
             filters.TEXT & ~filters.COMMAND,
@@ -2064,4 +2549,5 @@ def main():
 
 
 if __name__ == "__main__":
+
     main()
