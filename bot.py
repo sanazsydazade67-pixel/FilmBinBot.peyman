@@ -2645,7 +2645,7 @@ def main():
     # فایل‌ها و عکس‌ها
     # -----------------------------------------------------
 
-        application.add_handler(
+    application.add_handler(
         MessageHandler(
             (
                 filters.PHOTO
