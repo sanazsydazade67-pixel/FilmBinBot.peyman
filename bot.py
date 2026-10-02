@@ -2645,34 +2645,34 @@ def main():
     # فایل‌ها و عکس‌ها
     # -----------------------------------------------------
 
-    application.add_handler(
-    MessageHandler(
-        (
-            filters.PHOTO
-            | filters.VIDEO
-            | filters.Document.ALL
-        ),
-        media_router,
-    )
-)
-
-# -----------------------------------------------------
-# فایل‌ها و ویدیوهای کانال آرشیو
-# -----------------------------------------------------
-
-application.add_handler(
-    MessageHandler(
-        (
-            filters.Chat(ARCHIVE_CHANNEL)
-            & (
+        application.add_handler(
+        MessageHandler(
+            (
                 filters.PHOTO
                 | filters.VIDEO
                 | filters.Document.ALL
-            )
-        ),
-        archive_media_handler,
+            ),
+            media_router,
+        )
     )
-)
+
+    # -----------------------------------------------------
+    # فایل‌ها و ویدیوهای کانال آرشیو
+    # -----------------------------------------------------
+
+    application.add_handler(
+        MessageHandler(
+            (
+                filters.Chat(ARCHIVE_CHANNEL)
+                & (
+                    filters.PHOTO
+                    | filters.VIDEO
+                    | filters.Document.ALL
+                )
+            ),
+            archive_media_handler,
+        )
+    )
 
     # -----------------------------------------------------
     # پیام‌های متنی
