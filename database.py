@@ -140,8 +140,8 @@ def get_movie(movie_id):
     conn = get_db()
 
     movie = conn.execute(
-        "SELECT * FROM movies WHERE id=?",
-        (movie_id,)
+        "SELECT * FROM movies WHERE code=?",
+        (code,)
     ).fetchone()
 
     conn.close()
