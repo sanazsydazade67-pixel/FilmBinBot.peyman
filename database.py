@@ -1,16 +1,43 @@
 import sqlite3
 import json
 from datetime import datetime
+import os
 
 
-DB_NAME = "film_bin.db"
+# =========================
+# DATABASE PATH
+# =========================
 
+# Railway Volume
+# Volume باید روی /data متصل شده باشد.
+DB_DIR = "/data"
+
+# اگر /data در دسترس نبود، برای جلوگیری از Crash
+# از مسیر فعلی برنامه استفاده می‌کنیم.
+if not os.path.exists(DB_DIR):
+    DB_DIR = "."
+
+DB_NAME = os.path.join(DB_DIR, "film_bin.db")
+
+
+# =========================
+# DATABASE CONNECTION
+# =========================
 
 def get_db():
-    conn = sqlite3.connect(DB_NAME, check_same_thread=False)
+    conn = sqlite3.connect(
+        DB_NAME,
+        check_same_thread=False
+    )
+
     conn.row_factory = sqlite3.Row
+
     return conn
 
+
+# =========================
+# INIT DATABASE
+# =========================
 
 def init_db():
     conn = get_db()
@@ -81,11 +108,19 @@ def add_user(user_id):
     now = datetime.utcnow().isoformat()
 
     conn.execute("""
-    INSERT INTO users(user_id, first_seen, last_seen)
+    INSERT INTO users(
+        user_id,
+        first_seen,
+        last_seen
+    )
     VALUES (?, ?, ?)
     ON CONFLICT(user_id)
     DO UPDATE SET last_seen=excluded.last_seen
-    """, (user_id, now, now))
+    """, (
+        user_id,
+        now,
+        now
+    ))
 
     conn.commit()
     conn.close()
@@ -225,12 +260,22 @@ def set_movie_status(movie_id, status):
 # MOVIE FILES
 # =========================
 
-def add_movie_file(movie_id, quality, file_id, file_type):
+def add_movie_file(
+    movie_id,
+    quality,
+    file_id,
+    file_type
+):
     conn = get_db()
 
     conn.execute("""
     INSERT OR REPLACE INTO movie_files
-    (movie_id, quality, file_id, file_type)
+    (
+        movie_id,
+        quality,
+        file_id,
+        file_type
+    )
     VALUES (?, ?, ?, ?)
     """, (
         movie_id,
@@ -257,7 +302,9 @@ def get_movie_files(movie_id):
         WHEN '1080p' THEN 4
         ELSE 5
         END
-    """, (movie_id,)).fetchall()
+    """, (
+        movie_id,
+    )).fetchall()
 
     conn.close()
 
@@ -298,7 +345,10 @@ def search_movies(query):
 # CHANNEL MESSAGE IDS
 # =========================
 
-def save_channel_message_ids(movie_id, message_ids):
+def save_channel_message_ids(
+    movie_id,
+    message_ids
+):
     conn = get_db()
 
     conn.execute(
@@ -323,7 +373,10 @@ def get_channel_message_ids(movie_id):
         return []
 
     try:
-        return json.loads(movie["channel_message_ids"])
+        return json.loads(
+            movie["channel_message_ids"]
+        )
+
     except Exception:
         return []
 
@@ -332,7 +385,11 @@ def get_channel_message_ids(movie_id):
 # DOWNLOADS
 # =========================
 
-def record_download(user_id, movie_id, quality):
+def record_download(
+    user_id,
+    movie_id,
+    quality
+):
     conn = get_db()
 
     conn.execute("""
