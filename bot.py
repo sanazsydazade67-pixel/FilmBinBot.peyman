@@ -1447,15 +1447,15 @@ async def registration_text(
 # فایل‌های دریافتی
 # =========================================================
 
-async def media_router(
-    update,
-    context,
-):
+async def media_router(update, context):
 
     user = update.effective_user
 
-    if not is_admin(user.id):
+    # پیام‌های کانال کاربر ندارند
+    if user is None:
+        return
 
+    if not is_admin(user.id):
         return
 
     state = context.user_data.get(
