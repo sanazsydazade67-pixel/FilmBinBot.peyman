@@ -131,37 +131,68 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     database.add_user(user.id)
 
+    # /start بدون لینک
     if not context.args:
         await send_welcome(update, context)
         return
 
-    start_code = context.args[0]
+    # دریافت کد از لینک
+    start_code = context.args[0].strip()
 
-    movie = database.get_movie_by_code(start_code)
+    print("START PARAMETER:", start_code)
+
+    # مثال:
+    # film_AbC12345
+    # film_AbC12345_360p
+    # film_AbC12345_480p
+    # film_AbC12345_720p
+    # film_AbC12345_1080p
+
+    quality = None
+    movie_code = start_code
+
+    parts = start_code.split("_")
+
+    # تشخیص کیفیت
+    if len(parts) >= 3:
+
+        possible_quality = parts[-1].lower()
+
+        if possible_quality in (
+            "360p",
+            "480p",
+            "720p",
+            "1080p",
+        ):
+
+            quality = possible_quality
+
+            # حذف کیفیت از کد فیلم
+            movie_code = "_".join(parts[:-1])
+
+    print("MOVIE CODE:", movie_code)
+    print("QUALITY:", quality)
+
+    # پیدا کردن فیلم در دیتابیس
+    movie = database.get_movie_by_code(movie_code)
+
+    print("MOVIE FOUND:", bool(movie))
 
     if not movie:
+
         await update.message.reply_text(
             "❌ لینک فیلم معتبر نیست یا فیلم حذف شده است."
         )
+
         return
 
-    quality = None
-
-    # مثال:
-    # film_A1234567_720p
-    parts = start_code.split("_")
-
-    if len(parts) >= 3:
-        quality = "_".join(parts[2:])
-
+    # نمایش عضویت اجباری
     await show_membership(
         update,
         context,
         movie["id"],
         quality,
     )
-
-
 # =========================================================
 # خوش‌آمدگویی
 # =========================================================
