@@ -2,6 +2,7 @@ import sqlite3
 import json
 from datetime import datetime
 
+
 DB_NAME = "film_bin.db"
 
 
@@ -70,8 +71,13 @@ def init_db():
     conn.close()
 
 
+# =========================
+# USERS
+# =========================
+
 def add_user(user_id):
     conn = get_db()
+
     now = datetime.utcnow().isoformat()
 
     conn.execute("""
@@ -85,16 +91,31 @@ def add_user(user_id):
     conn.close()
 
 
+# =========================
+# MOVIES
+# =========================
+
 def add_movie(data):
     conn = get_db()
     cur = conn.cursor()
 
     cur.execute("""
     INSERT INTO movies (
-        code, title, original_title, category, imdb,
-        country, director, stars, synopsis, subtitle,
-        poster_file_id, trailer_file_id, trailer_type,
-        status, created_at
+        code,
+        title,
+        original_title,
+        category,
+        imdb,
+        country,
+        director,
+        stars,
+        synopsis,
+        subtitle,
+        poster_file_id,
+        trailer_file_id,
+        trailer_type,
+        status,
+        created_at
     )
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
@@ -123,25 +144,12 @@ def add_movie(data):
     return movie_id
 
 
-def add_movie_file(movie_id, quality, file_id, file_type):
-    conn = get_db()
-
-    conn.execute("""
-    INSERT OR REPLACE INTO movie_files
-    (movie_id, quality, file_id, file_type)
-    VALUES (?, ?, ?, ?)
-    """, (movie_id, quality, file_id, file_type))
-
-    conn.commit()
-    conn.close()
-
-
 def get_movie(movie_id):
     conn = get_db()
 
     movie = conn.execute(
-        "SELECT * FROM movies WHERE code=?",
-        (code,)
+        "SELECT * FROM movies WHERE id=?",
+        (movie_id,)
     ).fetchone()
 
     conn.close()
@@ -152,52 +160,49 @@ def get_movie(movie_id):
 def get_movie_by_code(code):
     conn = get_db()
 
+    code = str(code).strip()
+
+    # جستجوی مستقیم کد فیلم
     movie = conn.execute(
         "SELECT * FROM movies WHERE code=?",
         (code,)
     ).fetchone()
+
+    # اگر لینک شامل کیفیت بود،
+    # کیفیت را از انتهای کد حذف می‌کنیم
+    if not movie:
+
+        for quality in (
+            "_360p",
+            "_480p",
+            "_720p",
+            "_1080p",
+        ):
+
+            if code.endswith(quality):
+
+                base_code = code[:-len(quality)]
+
+                movie = conn.execute(
+                    "SELECT * FROM movies WHERE code=?",
+                    (base_code,)
+                ).fetchone()
+
+                if movie:
+                    break
 
     conn.close()
 
     return movie
 
 
-def get_movie_files(movie_id):
+def get_all_movies():
     conn = get_db()
-
-    rows = conn.execute("""
-    SELECT * FROM movie_files
-    WHERE movie_id=?
-    ORDER BY
-        CASE quality
-        WHEN '360p' THEN 1
-        WHEN '480p' THEN 2
-        WHEN '720p' THEN 3
-        WHEN '1080p' THEN 4
-        ELSE 5 END
-    """, (movie_id,)).fetchall()
-
-    conn.close()
-
-    return rows
-
-
-def search_movies(query):
-    conn = get_db()
-
-    q = f"%{query}%"
 
     rows = conn.execute("""
     SELECT * FROM movies
-    WHERE status='published'
-    AND (
-        title LIKE ?
-        OR original_title LIKE ?
-        OR category LIKE ?
-    )
     ORDER BY id DESC
-    LIMIT 20
-    """, (q, q, q)).fetchall()
+    """).fetchall()
 
     conn.close()
 
@@ -216,12 +221,92 @@ def set_movie_status(movie_id, status):
     conn.close()
 
 
+# =========================
+# MOVIE FILES
+# =========================
+
+def add_movie_file(movie_id, quality, file_id, file_type):
+    conn = get_db()
+
+    conn.execute("""
+    INSERT OR REPLACE INTO movie_files
+    (movie_id, quality, file_id, file_type)
+    VALUES (?, ?, ?, ?)
+    """, (
+        movie_id,
+        quality,
+        file_id,
+        file_type
+    ))
+
+    conn.commit()
+    conn.close()
+
+
+def get_movie_files(movie_id):
+    conn = get_db()
+
+    rows = conn.execute("""
+    SELECT * FROM movie_files
+    WHERE movie_id=?
+    ORDER BY
+        CASE quality
+        WHEN '360p' THEN 1
+        WHEN '480p' THEN 2
+        WHEN '720p' THEN 3
+        WHEN '1080p' THEN 4
+        ELSE 5
+        END
+    """, (movie_id,)).fetchall()
+
+    conn.close()
+
+    return rows
+
+
+# =========================
+# SEARCH
+# =========================
+
+def search_movies(query):
+    conn = get_db()
+
+    q = f"%{query}%"
+
+    rows = conn.execute("""
+    SELECT * FROM movies
+    WHERE status='published'
+    AND (
+        title LIKE ?
+        OR original_title LIKE ?
+        OR category LIKE ?
+    )
+    ORDER BY id DESC
+    LIMIT 20
+    """, (
+        q,
+        q,
+        q
+    )).fetchall()
+
+    conn.close()
+
+    return rows
+
+
+# =========================
+# CHANNEL MESSAGE IDS
+# =========================
+
 def save_channel_message_ids(movie_id, message_ids):
     conn = get_db()
 
     conn.execute(
         "UPDATE movies SET channel_message_ids=? WHERE id=?",
-        (json.dumps(message_ids), movie_id)
+        (
+            json.dumps(message_ids),
+            movie_id
+        )
     )
 
     conn.commit()
@@ -231,7 +316,10 @@ def save_channel_message_ids(movie_id, message_ids):
 def get_channel_message_ids(movie_id):
     movie = get_movie(movie_id)
 
-    if not movie or not movie["channel_message_ids"]:
+    if not movie:
+        return []
+
+    if not movie["channel_message_ids"]:
         return []
 
     try:
@@ -240,11 +328,20 @@ def get_channel_message_ids(movie_id):
         return []
 
 
+# =========================
+# DOWNLOADS
+# =========================
+
 def record_download(user_id, movie_id, quality):
     conn = get_db()
 
     conn.execute("""
-    INSERT INTO downloads(user_id, movie_id, quality, created_at)
+    INSERT INTO downloads(
+        user_id,
+        movie_id,
+        quality,
+        created_at
+    )
     VALUES (?, ?, ?, ?)
     """, (
         user_id,
@@ -256,6 +353,10 @@ def record_download(user_id, movie_id, quality):
     conn.commit()
     conn.close()
 
+
+# =========================
+# STATISTICS
+# =========================
 
 def get_stats():
     conn = get_db()
@@ -291,32 +392,26 @@ def get_stats():
     }
 
 
-def get_all_movies():
-    conn = get_db()
-
-    rows = conn.execute("""
-    SELECT * FROM movies
-    ORDER BY id DESC
-    """).fetchall()
-
-    conn.close()
-
-    return rows
-
+# =========================
+# DELETE MOVIE
+# =========================
 
 def delete_movie(movie_id):
     conn = get_db()
 
+    # حذف فایل‌های فیلم
     conn.execute(
         "DELETE FROM movie_files WHERE movie_id=?",
         (movie_id,)
     )
 
+    # حذف دانلودهای مربوط به فیلم
     conn.execute(
         "DELETE FROM downloads WHERE movie_id=?",
         (movie_id,)
     )
 
+    # حذف خود فیلم
     conn.execute(
         "DELETE FROM movies WHERE id=?",
         (movie_id,)
