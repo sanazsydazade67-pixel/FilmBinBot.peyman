@@ -2587,15 +2587,33 @@ def main():
     # -----------------------------------------------------
 
     application.add_handler(
-        MessageHandler(
-            (
+    MessageHandler(
+        (
+            filters.PHOTO
+            | filters.VIDEO
+            | filters.Document.ALL
+        ),
+        media_router,
+    )
+)
+
+# -----------------------------------------------------
+# فایل‌ها و ویدیوهای کانال آرشیو
+# -----------------------------------------------------
+
+application.add_handler(
+    MessageHandler(
+        (
+            filters.Chat(ARCHIVE_CHANNEL)
+            & (
                 filters.PHOTO
                 | filters.VIDEO
                 | filters.Document.ALL
-            ),
-            media_router,
-        )
+            )
+        ),
+        archive_media_handler,
     )
+)
 
     # -----------------------------------------------------
     # پیام‌های متنی
