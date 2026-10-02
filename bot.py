@@ -1447,6 +1447,32 @@ async def registration_text(
 # فایل‌های دریافتی
 # =========================================================
 
+async def debug_channel_update(update, context):
+
+    if update.channel_post:
+
+        print("\n" + "=" * 60)
+        print("CHANNEL POST RECEIVED")
+        print("=" * 60)
+
+        print(
+            "CHANNEL ID:",
+            update.channel_post.chat.id,
+        )
+
+        print(
+            "CHANNEL USERNAME:",
+            update.channel_post.chat.username,
+        )
+
+        print(
+            "MESSAGE ID:",
+            update.channel_post.message_id,
+        )
+
+        print("=" * 60 + "\n")
+
+
 async def archive_media_handler(update, context):
 
     message = update.channel_post
