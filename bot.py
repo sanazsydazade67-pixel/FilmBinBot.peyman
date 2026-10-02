@@ -2660,19 +2660,20 @@ def main():
     # فایل‌ها و ویدیوهای کانال آرشیو
     # -----------------------------------------------------
 
-    application.add_handler(
-    MessageHandler(
-        (
-            filters.Chat(ARCHIVE_CHANNEL)
-            & (
-                filters.PHOTO
-                | filters.VIDEO
-                | filters.Document.ALL
-            )
-        ),
-        archive_media_handler,
+        application.add_handler(
+        MessageHandler(
+            (
+                filters.UpdateType.CHANNEL_POST
+                & filters.Chat(ARCHIVE_CHANNEL)
+                & (
+                    filters.PHOTO
+                    | filters.VIDEO
+                    | filters.Document.ALL
+                )
+            ),
+            archive_media_handler,
+        )
     )
-)
 
     # -----------------------------------------------------
     # پیام‌های متنی
