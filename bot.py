@@ -1447,6 +1447,65 @@ async def registration_text(
 # فایل‌های دریافتی
 # =========================================================
 
+async def archive_media_handler(update, context):
+
+    message = update.channel_post
+
+    if message is None:
+        return
+
+    print("\n" + "=" * 60)
+    print("ARCHIVE FILE RECEIVED")
+    print("=" * 60)
+
+    print(
+        "CHANNEL:",
+        message.chat.username
+        if message.chat
+        else None,
+    )
+
+    print(
+        "MESSAGE ID:",
+        message.message_id,
+    )
+
+    if message.video:
+
+        print(
+            "TYPE: VIDEO"
+        )
+
+        print(
+            "FILE ID:",
+            message.video.file_id,
+        )
+
+    elif message.document:
+
+        print(
+            "TYPE: DOCUMENT"
+        )
+
+        print(
+            "FILE ID:",
+            message.document.file_id,
+        )
+
+    elif message.photo:
+
+        print(
+            "TYPE: PHOTO"
+        )
+
+        print(
+            "FILE ID:",
+            message.photo[-1].file_id,
+        )
+
+    print("=" * 60 + "\n")
+
+
 async def media_router(update, context):
 
     user = update.effective_user
