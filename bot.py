@@ -2819,10 +2819,21 @@ async def error_handler(
 # اجرای ربات
 # =========================================================
 
+async def search_command(
+    update,
+    context,
+):
+
+    context.user_data["search_user"] = True
+
+    await update.message.reply_text(
+        "🔎 نام فیلم را بفرست:"
+    )
+
+
 def main():
 
     if not BOT_TOKEN:
-
         raise RuntimeError(
             "BOT_TOKEN is not set in Railway Variables"
         )
@@ -2857,6 +2868,13 @@ def main():
         CommandHandler(
             "start",
             start,
+        )
+    )
+
+    application.add_handler(
+        CommandHandler(
+            "search",
+            search_command,
         )
     )
 
