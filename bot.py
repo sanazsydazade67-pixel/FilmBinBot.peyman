@@ -1449,6 +1449,48 @@ async def registration_text(
 # فایل‌های دریافتی
 # =========================================================
 
+async def moviecodes_command(update, context):
+
+    user = update.effective_user
+
+    if user is None:
+        return
+
+    if not is_admin(user.id):
+        await update.message.reply_text(
+            "⛔ این دستور فقط برای مدیر است."
+        )
+        return
+
+    conn = database.get_db()
+
+    rows = conn.execute("""
+        SELECT id, code, title, status
+        FROM movies
+        ORDER BY id
+    """).fetchall()
+
+    conn.close()
+
+    if not rows:
+        await update.message.reply_text(
+            "📭 هیچ فیلمی در دیتابیس نیست."
+        )
+        return
+
+    text = "🎬 کد فیلم‌ها:\n\n"
+
+    for row in rows:
+        text += (
+            f"#{row['id']}\n"
+            f"🎬 عنوان: {row['title']}\n"
+            f"🔑 کد: {row['code']}\n"
+            f"📌 وضعیت: {row['status']}\n\n"
+        )
+
+    await update.message.reply_text(text)
+
+
 async def debug_channel_update(update, context):
 
     if update.channel_post:
@@ -2781,7 +2823,7 @@ async def error_handler(
 # اجرای ربات
 # =========================================================
 
-def main():
+  def main():
 
     if not BOT_TOKEN:
 
@@ -2840,6 +2882,13 @@ def main():
         CommandHandler(
             "cancel",
             cancel_command,
+        )
+    )
+
+    application.add_handler(
+        CommandHandler(
+            "moviecodes",
+            moviecodes_command,
         )
     )
 
@@ -2958,6 +3007,5 @@ def main():
 
 if __name__ == "__main__":
 
-    main()
-
+    main()     
     
