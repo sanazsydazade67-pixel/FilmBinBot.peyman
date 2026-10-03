@@ -11,11 +11,12 @@ from telegram import (
 from telegram.constants import ChatMemberStatus
 from telegram.ext import (
     Application,
-    CommandHandler,
-    MessageHandler,
-    CallbackQueryHandler,
-    ContextTypes,
-    filters,
+CommandHandler,
+MessageHandler,
+CallbackQueryHandler,
+TypeHandler,
+ContextTypes,
+filters,
 )
 
 import database
@@ -2566,6 +2567,18 @@ def main():
     )
 
     # -----------------------------------------------------
+    # تشخیص پیام‌های کانال برای تست
+    # -----------------------------------------------------
+
+    application.add_handler(
+        TypeHandler(
+            Update,
+            debug_channel_update,
+        ),
+        group=-1,
+    )
+
+    # -----------------------------------------------------
     # دستورات
     # -----------------------------------------------------
 
@@ -2686,7 +2699,7 @@ def main():
     # فایل‌ها و ویدیوهای کانال آرشیو
     # -----------------------------------------------------
 
-            application.add_handler(
+    application.add_handler(
         MessageHandler(
             (
                 filters.UpdateType.CHANNEL_POST
@@ -2712,6 +2725,10 @@ def main():
         )
     )
 
+    # -----------------------------------------------------
+    # مدیریت خطاها
+    # -----------------------------------------------------
+
     application.add_error_handler(
         error_handler
     )
@@ -2728,3 +2745,4 @@ def main():
 if __name__ == "__main__":
 
     main()
+    
