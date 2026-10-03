@@ -347,7 +347,7 @@ async def send_welcome(
         ],
         [
             InlineKeyboardButton(
-                "📚 فیلم‌های منتشرشده",
+                "🎬 جدیدترین فیلم‌ها",
                 callback_data="list",
             )
         ],
@@ -368,7 +368,7 @@ async def send_welcome(
         text,
         reply_markup=InlineKeyboardMarkup(
             buttons
-        ),
+        )
     )
 
     context.job_queue.run_once(
@@ -378,6 +378,7 @@ async def send_welcome(
         chat_id=msg.chat_id,
         name=f"welcome_{msg.message_id}",
     )
+
 
 
 # =========================================================
