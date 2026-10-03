@@ -837,7 +837,7 @@ async def admin_button(
 
     if data == "list":
 
-        rows = database.search_movies("")
+        rows = database.get_latest_movies(30)
 
         if not rows:
 
