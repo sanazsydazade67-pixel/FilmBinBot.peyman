@@ -2686,7 +2686,7 @@ def main():
     # فایل‌ها و ویدیوهای کانال آرشیو
     # -----------------------------------------------------
 
-        application.add_handler(
+            application.add_handler(
         MessageHandler(
             (
                 filters.UpdateType.CHANNEL_POST
