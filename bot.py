@@ -353,6 +353,12 @@ async def send_welcome(
         ],
         [
             InlineKeyboardButton(
+                "⭐ علاقه‌مندی‌ها",
+                callback_data="favorites",
+            )
+        ],
+        [
+            InlineKeyboardButton(
                 "📖 راهنمای دریافت",
                 callback_data="guide",
             )
@@ -643,6 +649,30 @@ async def send_movie_to_user(
                     )
                 ]
             )
+
+        # -----------------------------------------------------
+        # علاقه‌مندی
+        # -----------------------------------------------------
+
+        if database.is_favorite(
+            user_id,
+            movie_id,
+        ):
+
+            favorite_text = "⭐ حذف از علاقه‌مندی‌ها"
+
+        else:
+
+            favorite_text = "⭐ افزودن به علاقه‌مندی‌ها"
+
+        buttons.append(
+            [
+                InlineKeyboardButton(
+                    favorite_text,
+                    callback_data=f"favorite:{movie_id}",
+                )
+            ]
+        )
 
         await context.bot.send_message(
             user_id,
@@ -2534,6 +2564,194 @@ async def movie_view(
 
 
 # =========================================================
+# علاقه‌مندی‌ها
+# =========================================================
+
+async def favorite_button(
+    update,
+    context,
+):
+
+    query = update.callback_query
+
+    await query.answer()
+
+    user_id = query.from_user.id
+
+    movie_id = int(
+        query.data.split(":")[1]
+    )
+
+    movie = database.get_movie(
+        movie_id
+    )
+
+    if not movie:
+
+        await query.answer(
+            "❌ فیلم پیدا نشد.",
+            show_alert=True,
+        )
+
+        return
+
+    if database.is_favorite(
+        user_id,
+        movie_id,
+    ):
+
+        database.remove_favorite(
+            user_id,
+            movie_id,
+        )
+
+        await query.answer(
+            "💔 از علاقه‌مندی‌ها حذف شد."
+        )
+
+    else:
+
+        database.add_favorite(
+            user_id,
+            movie_id,
+        )
+
+        await query.answer(
+            "⭐ به علاقه‌مندی‌ها اضافه شد."
+        )
+
+    await send_movie_to_user(
+        user_id,
+        movie_id,
+        None,
+        context,
+    )
+
+# =========================================================
+# نمایش علاقه‌مندی‌ها
+# =========================================================
+
+async def favorites_button(
+    update,
+    context,
+):
+
+    query = update.callback_query
+
+    await query.answer()
+
+    user_id = query.from_user.id
+
+    movies = database.get_user_favorites(
+        user_id
+    )
+
+    if not movies:
+
+        await query.message.edit_text(
+            "⭐ هنوز هیچ فیلمی را به علاقه‌مندی‌ها اضافه نکرده‌اید."
+        )
+
+        return
+
+    buttons = []
+
+    for movie in movies:
+
+        buttons.append(
+            [
+                InlineKeyboardButton(
+                    f"🎬 {movie['title']}",
+                    callback_data=f"movie:{movie['id']}",
+                )
+            ]
+        )
+
+    buttons.append(
+        [
+            InlineKeyboardButton(
+                "🔙 بازگشت",
+                callback_data="back_home",
+            )
+        ]
+    )
+
+    await query.message.edit_text(
+        "⭐ فیلم‌های موردعلاقه شما:",
+        reply_markup=InlineKeyboardMarkup(
+            buttons
+        ),
+    )
+    
+# =========================================================
+# بازگشت به منوی اصلی
+# =========================================================
+
+async def back_home_button(
+    update,
+    context,
+):
+
+    query = update.callback_query
+
+    await query.answer()
+
+    user = query.from_user
+
+    text = (
+        "🎬 به ربات فیلم‌بین خوش آمدید!\n\n"
+        "🔎 از این ربات می‌توانید فیلم موردنظر خود را "
+        "جستجو و کیفیت موردنظر را دریافت کنید.\n\n"
+        "🔐 برای دریافت فیلم باید ابتدا در کانال‌ها "
+        "و گروه مشخص‌شده عضو شوید."
+    )
+
+    buttons = [
+        [
+            InlineKeyboardButton(
+                "🔎 جستجوی فیلم",
+                callback_data="search",
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                "🎬 جدیدترین فیلم‌ها",
+                callback_data="list",
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                "⭐ علاقه‌مندی‌ها",
+                callback_data="favorites",
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                "📖 راهنمای دریافت",
+                callback_data="guide",
+            )
+        ],
+    ]
+
+    if is_admin(user.id):
+
+        buttons.append(
+            [
+                InlineKeyboardButton(
+                    "⚙️ پنل مدیریت",
+                    callback_data="admin",
+                )
+            ]
+        )
+
+    await query.message.edit_text(
+        text,
+        reply_markup=InlineKeyboardMarkup(
+            buttons
+        ),
+    )
+
+# =========================================================
 # حذف فیلم
 # =========================================================
 
@@ -3025,7 +3243,7 @@ def main():
     # -----------------------------------------------------
     # نمایش فیلم
     # -----------------------------------------------------
-
+    
     application.add_handler(
         CallbackQueryHandler(
             movie_view,
@@ -3033,6 +3251,27 @@ def main():
         )
     )
 
+    application.add_handler(
+        CallbackQueryHandler(
+            favorite_button,
+            pattern=r"^favorite:",
+        )
+    )
+
+    application.add_handler(
+        CallbackQueryHandler(
+            favorites_button,
+            pattern=r"^favorites$",
+        )
+    )
+
+    application.add_handler(
+        CallbackQueryHandler(
+            back_home_button,
+            pattern=r"^back_home$",
+        )
+    )
+    
     # -----------------------------------------------------
     # فایل‌ها و عکس‌ها
     # -----------------------------------------------------
