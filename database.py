@@ -75,7 +75,7 @@ def init_db():
         UNIQUE(movie_id, quality)
     )
     """)
-
+    
     cur.execute("""
     CREATE TABLE IF NOT EXISTS users (
         user_id INTEGER PRIMARY KEY,
@@ -83,7 +83,7 @@ def init_db():
         last_seen TEXT
     )
     """)
-
+    
     cur.execute("""
     CREATE TABLE IF NOT EXISTS downloads (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -94,10 +94,19 @@ def init_db():
     )
     """)
 
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS favorites (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        movie_id INTEGER NOT NULL,
+        created_at TEXT,
+        UNIQUE(user_id, movie_id)
+    )
+    """)
+
     conn.commit()
     conn.close()
-
-
+    
 # =========================
 # USERS
 # =========================
@@ -191,7 +200,86 @@ def get_movie(movie_id):
 
     return movie
 
+# =========================================================
+# علاقه‌مندی‌ها
+# =========================================================
 
+def add_favorite(user_id, movie_id):
+
+    conn = get_db()
+
+    conn.execute("""
+        INSERT OR IGNORE INTO favorites
+        (
+            user_id,
+            movie_id,
+            created_at
+        )
+        VALUES (?, ?, datetime('now'))
+    """, (
+        user_id,
+        movie_id
+    ))
+
+    conn.commit()
+    conn.close()
+
+
+def remove_favorite(user_id, movie_id):
+
+    conn = get_db()
+
+    conn.execute("""
+        DELETE FROM favorites
+        WHERE user_id=?
+        AND movie_id=?
+    """, (
+        user_id,
+        movie_id
+    ))
+
+    conn.commit()
+    conn.close()
+
+
+def is_favorite(user_id, movie_id):
+
+    conn = get_db()
+
+    row = conn.execute("""
+        SELECT id
+        FROM favorites
+        WHERE user_id=?
+        AND movie_id=?
+    """, (
+        user_id,
+        movie_id
+    )).fetchone()
+
+    conn.close()
+
+    return row is not None
+
+
+def get_user_favorites(user_id):
+
+    conn = get_db()
+
+    rows = conn.execute("""
+        SELECT movies.*
+        FROM favorites
+        JOIN movies
+        ON favorites.movie_id = movies.id
+        WHERE favorites.user_id=?
+        ORDER BY favorites.id DESC
+    """, (
+        user_id,
+    )).fetchall()
+
+    conn.close()
+
+    return rows
+    
 def get_movie_by_code(code):
     conn = get_db()
 
