@@ -1,4 +1,5 @@
 import os
+import re
 import secrets
 import string
 import traceback
@@ -1474,11 +1475,19 @@ async def debug_channel_update(update, context):
         print("=" * 60 + "\n")
 
 
+
 async def archive_media_handler(update, context):
 
     message = update.channel_post
 
     if message is None:
+        return
+
+    # فقط کانال آرشیو
+    if not message.chat:
+        return
+
+    if message.chat.username != "P_sh_Archive":
         return
 
     print("\n" + "=" * 60)
@@ -1487,9 +1496,7 @@ async def archive_media_handler(update, context):
 
     print(
         "CHANNEL:",
-        message.chat.username
-        if message.chat
-        else None,
+        message.chat.username,
     )
 
     print(
@@ -1497,41 +1504,267 @@ async def archive_media_handler(update, context):
         message.message_id,
     )
 
+    # -----------------------------------------------------
+    # تشخیص فایل
+    # -----------------------------------------------------
+
+    file_id = None
+    file_type = None
+
     if message.video:
 
-        print(
-            "TYPE: VIDEO"
-        )
+        file_id = message.video.file_id
+        file_type = "video"
 
-        print(
-            "FILE ID:",
-            message.video.file_id,
-        )
+        print("TYPE: VIDEO")
 
     elif message.document:
 
+        file_id = message.document.file_id
+        file_type = "document"
+
+        print("TYPE: DOCUMENT")
+
+    else:
+
         print(
-            "TYPE: DOCUMENT"
+            "❌ این پیام فایل ویدیویی یا document نیست."
+        )
+
+        print("=" * 60 + "\n")
+
+        return
+
+    print(
+        "FILE ID:",
+        file_id,
+    )
+
+    # -----------------------------------------------------
+    # خواندن کپشن
+    # -----------------------------------------------------
+
+    caption = (
+        message.caption.strip()
+        if message.caption
+        else ""
+    )
+
+    print(
+        "CAPTION:",
+        caption,
+    )
+
+    if not caption:
+
+        print(
+            "❌ کپشن ندارد."
+        )
+
+        await context.bot.send_message(
+            ADMIN_IDS.pop()
+            if False
+            else next(iter(ADMIN_IDS)),
+            (
+                "⚠️ فایل جدیدی در آرشیو دریافت شد، "
+                "اما کپشن ندارد.\n\n"
+                "فرمت کپشن باید مثلاً این باشد:\n"
+                "ABC123 720p"
+            ),
+        )
+
+        print("=" * 60 + "\n")
+
+        return
+
+    # -----------------------------------------------------
+    # استخراج کد فیلم و کیفیت
+    # -----------------------------------------------------
+
+    parts = caption.replace("_", " ").split()
+
+    quality = None
+
+    for item in parts:
+
+        if item.lower() in (
+            "360p",
+            "480p",
+            "720p",
+            "1080p",
+        ):
+
+            quality = item.lower()
+
+            break
+
+    if not quality:
+
+        print(
+            "❌ کیفیت از کپشن پیدا نشد."
+        )
+
+        await context.bot.send_message(
+            next(iter(ADMIN_IDS)),
+            (
+                "⚠️ فایل آرشیو دریافت شد، "
+                "اما کیفیت مشخص نیست.\n\n"
+                "فرمت صحیح کپشن:\n"
+                "ABC123 720p"
+            ),
+        )
+
+        print("=" * 60 + "\n")
+
+        return
+
+    # حذف کیفیت از کپشن
+    movie_code = caption
+
+    for q in (
+        "360p",
+        "480p",
+        "720p",
+        "1080p",
+    ):
+
+        movie_code = movie_code.replace(
+            q,
+            "",
+        ).replace(
+            q.upper(),
+            "",
+        )
+
+    movie_code = movie_code.replace(
+        "_",
+        " ",
+    ).strip()
+
+    # اگر چند کلمه اضافی وجود داشت،
+    # اولین بخش را به عنوان کد فیلم می‌گیریم
+    movie_code = movie_code.split()[0]
+
+    print(
+        "MOVIE CODE:",
+        movie_code,
+    )
+
+    print(
+        "QUALITY:",
+        quality,
+    )
+
+    # -----------------------------------------------------
+    # پیدا کردن فیلم
+    # -----------------------------------------------------
+
+    movie = database.get_movie_by_code(
+        movie_code
+    )
+
+    if not movie:
+
+        print(
+            "❌ MOVIE NOT FOUND:",
+            movie_code,
+        )
+
+        await context.bot.send_message(
+            next(iter(ADMIN_IDS)),
+            (
+                "❌ فایل آرشیو دریافت شد، "
+                "اما فیلم پیدا نشد.\n\n"
+                f"🎬 کد فیلم: {movie_code}\n"
+                f"📥 کیفیت: {quality}\n\n"
+                "ابتدا فیلم را در ربات ثبت کنید."
+            ),
+        )
+
+        print("=" * 60 + "\n")
+
+        return
+
+    movie_id = movie["id"]
+
+    print(
+        "MOVIE ID:",
+        movie_id,
+    )
+
+    print(
+        "MOVIE TITLE:",
+        movie["title"],
+    )
+
+    # -----------------------------------------------------
+    # ذخیره فایل در movie_files
+    # -----------------------------------------------------
+
+    try:
+
+        database.add_movie_file(
+            movie_id,
+            quality,
+            file_id,
+            file_type,
         )
 
         print(
-            "FILE ID:",
-            message.document.file_id,
+            "✅ FILE SAVED TO DATABASE"
         )
 
-    elif message.photo:
-
-        print(
-            "TYPE: PHOTO"
-        )
+    except Exception as error:
 
         print(
-            "FILE ID:",
-            message.photo[-1].file_id,
+            "❌ DATABASE ERROR:",
+            repr(error),
         )
+
+        await context.bot.send_message(
+            next(iter(ADMIN_IDS)),
+            (
+                "❌ ذخیره فایل آرشیو در دیتابیس "
+                "انجام نشد.\n\n"
+                f"🎬 فیلم: {movie['title']}\n"
+                f"📥 کیفیت: {quality}\n"
+                f"❌ خطا: {error}"
+            ),
+        )
+
+        print("=" * 60 + "\n")
+
+        return
+
+    # -----------------------------------------------------
+    # پیام موفقیت
+    # -----------------------------------------------------
+
+    print(
+        "✅ ARCHIVE FILE REGISTERED"
+    )
+
+    print(
+        "MOVIE:",
+        movie["title"],
+    )
+
+    print(
+        "QUALITY:",
+        quality,
+    )
 
     print("=" * 60 + "\n")
 
+    await context.bot.send_message(
+        next(iter(ADMIN_IDS)),
+        (
+            "✅ فایل آرشیو ثبت شد!\n\n"
+            f"🎬 فیلم: {movie['title']}\n"
+            f"📥 کیفیت: {quality}\n"
+            f"📁 نوع فایل: {file_type}"
+        ),
+    )
 
 async def media_router(update, context):
 
