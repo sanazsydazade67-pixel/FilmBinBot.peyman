@@ -2699,13 +2699,13 @@ def main():
     # فایل‌ها و ویدیوهای کانال آرشیو
     # -----------------------------------------------------
 
-        application.add_handler(
+            application.add_handler(
         TypeHandler(
             Update,
             archive_media_handler,
         ),
-        group=0,
-        )
+        group=-1,
+    )
 
     # -----------------------------------------------------
     # پیام‌های متنی
