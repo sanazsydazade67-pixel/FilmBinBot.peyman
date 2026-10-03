@@ -2823,7 +2823,7 @@ async def error_handler(
 # اجرای ربات
 # =========================================================
 
-  def main():
+def main():
 
     if not BOT_TOKEN:
 
@@ -3006,5 +3006,6 @@ async def error_handler(
 
 
 if __name__ == "__main__":
-
     main()
+
+
