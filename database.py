@@ -341,6 +341,25 @@ def search_movies(query):
     return rows
 
 
+def get_latest_movies(limit=30):
+
+    conn = get_db()
+
+    rows = conn.execute("""
+        SELECT *
+        FROM movies
+        WHERE status='published'
+        ORDER BY id DESC
+        LIMIT ?
+    """, (
+        limit,
+    )).fetchall()
+
+    conn.close()
+
+    return rows
+
+
 # =========================
 # CHANNEL MESSAGE IDS
 # =========================
