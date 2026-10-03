@@ -574,7 +574,7 @@ async def send_movie_to_user(
     # -----------------------------------------------------
     # اگر کیفیت مشخص نشده
     # -----------------------------------------------------
-
+    
     if not quality:
 
         buttons = []
@@ -587,7 +587,8 @@ async def send_movie_to_user(
                 user_id,
                 poster,
                 caption=(
-                    f"🎬 {movie['title']}\n\n"
+                    f"🎬 {movie['title']}\n"
+                    f"🎭 ژانر: {movie['category'] or 'نامشخص'}\n\n"
                     "📥 کیفیت موردنظر را انتخاب کنید:"
                 ),
             )
