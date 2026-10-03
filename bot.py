@@ -1660,8 +1660,11 @@ async def archive_media_handler(update, context):
 
         return
 
-    # حذف کیفیت از کپشن
-    movie_code = caption
+    # -----------------------------------------------------
+    # حذف کیفیت از کپشن و استخراج کد فیلم
+    # -----------------------------------------------------
+
+    movie_code = caption.strip()
 
     for q in (
         "360p",
@@ -1678,14 +1681,7 @@ async def archive_media_handler(update, context):
             "",
         )
 
-    movie_code = movie_code.replace(
-        "_",
-        " ",
-    ).strip()
-
-    # اگر چند کلمه اضافی وجود داشت،
-    # اولین بخش را به عنوان کد فیلم می‌گیریم
-    movie_code = movie_code.split()[0]
+    movie_code = movie_code.strip()
 
     print(
         "MOVIE CODE:",
