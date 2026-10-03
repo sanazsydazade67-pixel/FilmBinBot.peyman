@@ -570,7 +570,7 @@ async def send_movie_to_user(
             selected = file
 
             break
-
+            
     # -----------------------------------------------------
     # اگر کیفیت مشخص نشده
     # -----------------------------------------------------
@@ -578,6 +578,19 @@ async def send_movie_to_user(
     if not quality:
 
         buttons = []
+
+        poster = movie["poster_file_id"]
+
+        if poster:
+
+            await context.bot.send_photo(
+                user_id,
+                poster,
+                caption=(
+                    f"🎬 {movie['title']}\n\n"
+                    "📥 کیفیت موردنظر را انتخاب کنید:"
+                ),
+            )
 
         for file in files:
 
@@ -598,17 +611,14 @@ async def send_movie_to_user(
 
         await context.bot.send_message(
             user_id,
-            (
-                f"🎬 {movie['title']}\n\n"
-                "📥 کیفیت موردنظر را انتخاب کنید:"
-            ),
+            "📥 کیفیت موردنظر را انتخاب کنید:",
             reply_markup=InlineKeyboardMarkup(
                 buttons
             ),
         )
 
         return
-
+        
     # -----------------------------------------------------
     # کیفیت موجود نیست
     # -----------------------------------------------------
