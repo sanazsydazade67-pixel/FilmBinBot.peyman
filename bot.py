@@ -748,6 +748,61 @@ async def send_movie_to_user(
             user_id,
             "❌ ارسال فایل انجام نشد.",
         )
+        
+# =========================================================
+# ارسال اعلان فیلم جدید
+# =========================================================
+
+async def notify_new_movie(
+    movie_id,
+    context,
+):
+
+    movie = database.get_movie(
+        movie_id
+    )
+
+    if not movie:
+        return
+
+    users = database.get_notification_users()
+
+    if not users:
+        return
+
+    text = (
+        "🎬 فیلم جدید در فیلم‌بین منتشر شد!\n\n"
+        f"🎞 {movie['title']}\n\n"
+        "برای مشاهده و دریافت فیلم روی دکمه زیر بزنید."
+    )
+
+    button = [
+        [
+            InlineKeyboardButton(
+                "🎬 مشاهده فیلم",
+                callback_data=f"movie:{movie_id}",
+            )
+        ]
+    ]
+
+    for user_id in users:
+
+        try:
+
+            await context.bot.send_message(
+                user_id,
+                text,
+                reply_markup=InlineKeyboardMarkup(
+                    button
+                ),
+            )
+
+        except Exception as error:
+
+            print(
+                f"NOTIFICATION ERROR {user_id}:",
+                error,
+            )
 
 
 # =========================================================
@@ -2278,32 +2333,7 @@ async def registration_button(
 
 async def publish_movie(
     update,
-    context,
-):
-
-    query = update.callback_query
-
-    await query.answer()
-
-    if not is_admin(
-        query.from_user.id
-    ):
-
-        return
-
-    movie_id = int(
-        query.data.split(":")[1]
-    )
-
-    movie = database.get_movie(
-        movie_id
-    )
-
-    if not movie:
-
-        return
-
-    files = database.get_movie_files(
+ = database.get_movie_files(
         movie_id
     )
 
@@ -2488,6 +2518,11 @@ async def publish_movie(
         database.set_movie_status(
             movie_id,
             "published",
+        )
+
+        await notify_new_movie(
+            movie_id,
+            context,
         )
 
         await query.message.edit_text(
