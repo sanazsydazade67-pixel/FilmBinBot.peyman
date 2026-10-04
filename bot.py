@@ -2756,6 +2756,69 @@ async def back_home_button(
             buttons
         ),
     )
+    
+# =========================================================
+# تنظیم اعلان‌ها
+# =========================================================
+
+async def notifications_button(
+    update,
+    context,
+):
+
+    query = update.callback_query
+
+    await query.answer()
+
+    user_id = query.from_user.id
+
+    enabled = database.get_notifications_status(
+        user_id
+    )
+
+    if enabled:
+
+        text = (
+            "🔔 اعلان‌های فیلم جدید فعال است.\n\n"
+            "هر زمان فیلم جدیدی منتشر شود، "
+            "به شما اطلاع داده خواهد شد."
+        )
+
+    else:
+
+        text = (
+            "🔕 اعلان‌های فیلم جدید خاموش است.\n\n"
+            "در صورت خاموش بودن، اعلان فیلم‌های جدید "
+            "برای شما ارسال نمی‌شود."
+        )
+
+    buttons = [
+        [
+            InlineKeyboardButton(
+                "🔔 روشن کردن اعلان‌ها",
+                callback_data="notify_on",
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                "🔕 خاموش کردن اعلان‌ها",
+                callback_data="notify_off",
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                "🔙 بازگشت",
+                callback_data="back_home",
+            )
+        ],
+    ]
+
+    await query.message.edit_text(
+        text,
+        reply_markup=InlineKeyboardMarkup(
+            buttons
+        ),
+    )
 
 # =========================================================
 # حذف فیلم
