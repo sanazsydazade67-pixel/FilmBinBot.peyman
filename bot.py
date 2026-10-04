@@ -1683,6 +1683,26 @@ async def archive_media_handler(update, context):
     # فقط کانال آرشیو
     if not message.chat:
         return
+        
+    # -----------------------------------------------------
+    # آرشیو ۲
+    # -----------------------------------------------------
+
+    if message.chat.id == 1003336530443:
+
+        await context.bot.send_message(
+            next(iter(ADMIN_IDS)),
+            (
+                "✅ فایل در آرشیو ۲ دریافت شد!\n\n"
+                f"🆔 Message ID: {message.message_id}"
+            ),
+        )
+
+        return
+
+    # -----------------------------------------------------
+    # فقط کانال آرشیو اول
+    # -----------------------------------------------------
 
     if message.chat.username != "P_sh_Archive":
         return
