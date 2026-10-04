@@ -2333,7 +2333,36 @@ async def registration_button(
 
 async def publish_movie(
     update,
- = database.get_movie_files(
+    context,
+):
+
+    query = update.callback_query
+
+    await query.answer()
+
+    if not is_admin(
+        query.from_user.id
+    ):
+
+        return
+
+    movie_id = int(
+        query.data.split(":")[1]
+    )
+
+    movie = database.get_movie(
+        movie_id
+    )
+
+    if not movie:
+
+        await query.message.reply_text(
+            "❌ فیلم پیدا نشد."
+        )
+
+        return
+
+    files = database.get_movie_files(
         movie_id
     )
 
