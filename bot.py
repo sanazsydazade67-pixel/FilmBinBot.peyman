@@ -257,10 +257,15 @@ async def start(
         )
 
         if missing:
-            # فعلاً فقط اعلام می‌کنیم که عضویت کامل نیست
-            await update.message.reply_text(
-                "🔐 برای دریافت فایل ابتدا باید در کانال‌ها و گروه مشخص‌شده عضو شوید."
+
+            await show_membership(
+                update,
+                context,
+                movie_id=None,
+                quality=None,
+                archive_code=start_code,
             )
+
             return
 
         # ارسال فایل
@@ -471,8 +476,9 @@ async def send_welcome(
 async def show_membership(
     update,
     context,
-    movie_id,
+    movie_id=None,
     quality=None,
+    archive_code=None,
 ):
 
     buttons = []
@@ -493,15 +499,28 @@ async def show_membership(
 
     quality_value = quality or "all"
 
+    if archive_code:
+
+        callback_data = (
+            f"check:"
+            f"file:"
+            f"{archive_code}"
+        )
+
+    else:
+
+        callback_data = (
+            f"check:"
+            f"{movie_id}:"
+            f"{quality_value}"
+        )
+
     buttons.append(
-        [
+        [ 
             InlineKeyboardButton(
+    
                 "✅ بررسی عضویت",
-                callback_data=(
-                    f"check:"
-                    f"{movie_id}:"
-                    f"{quality_value}"
-                ),
+                callback_data=callback_data,
             )
         ]
     )
@@ -544,14 +563,21 @@ async def check_membership(
 
     query = update.callback_query
 
-    _, movie_id, quality = query.data.split(
-        ":",
-        2,
-    )
-
-    movie_id = int(movie_id)
+    parts = query.data.split(":")
 
     user_id = query.from_user.id
+
+    # فایل آرشیو ۲
+    if parts[1] == "file":
+
+        archive_code = parts[2]
+
+        # ادامه بررسی عضویت پایین‌تر انجام می‌شود
+
+    else:
+
+        movie_id = int(parts[1])
+        quality = parts[2]
 
     # -----------------------------------------------------
     # بررسی واقعی عضویت
@@ -583,28 +609,60 @@ async def check_membership(
         "✅ عضویت شما تأیید شد."
     )
 
-    try:
+    # -----------------------------------------------------
+    # ارسال فایل آرشیو ۲
+    # -----------------------------------------------------
 
-        await query.message.delete()
+    if parts[1] == "file":
 
-    except Exception:
+        archive_file = database.get_archive_file_by_code(
+            archive_code
+        )
 
-        pass
+        if not archive_file:
+            await query.message.reply_text(
+                "❌ فایل آرشیو پیدا نشد."
+            )
+            return
 
-    if quality == "all":
+        try:
 
-        quality = None
+            await query.message.delete()
+
+        except Exception:
+
+            pass
+
+        if archive_file["file_type"] == "video":
+
+            await context.bot.send_video(
+                user_id,
+                archive_file["file_id"],
+            )
+
+        elif archive_file["file_type"] == "document":
+
+            await context.bot.send_document(
+                user_id,
+                archive_file["file_id"],
+            )
+
+        return
 
     # -----------------------------------------------------
     # ارسال فیلم
     # -----------------------------------------------------
+
+    if quality == "all":
+
+        quality = None
 
     await send_movie_to_user(
         user_id,
         movie_id,
         quality,
         context,
-    )
+    )  
 
 # =========================================================
 # راهنمای دریافت فیلم
