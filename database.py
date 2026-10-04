@@ -113,6 +113,16 @@ def init_db():
     )
     """)
 
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS archive_files (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        code TEXT UNIQUE NOT NULL,
+        file_id TEXT NOT NULL,
+        file_type TEXT NOT NULL,
+        created_at TEXT
+    )
+    """)
+
     conn.commit()
     conn.close()
     
@@ -449,6 +459,54 @@ def add_movie_file(
 
     conn.commit()
     conn.close()
+    
+def add_archive_file(
+    code,
+    file_id,
+    file_type,
+):
+    conn = get_db()
+
+    conn.execute("""
+    INSERT INTO archive_files
+    (
+        code,
+        file_id,
+        file_type,
+        created_at
+    )
+    VALUES (?, ?, ?, datetime('now'))
+    """, (
+        code,
+        file_id,
+        file_type,
+    ))
+
+    conn.commit()
+    conn.close()
+
+
+def get_archive_file_by_code(
+    code,
+):
+    conn = get_db()
+
+    row = conn.execute("""
+    SELECT
+        id,
+        code,
+        file_id,
+        file_type,
+        created_at
+    FROM archive_files
+    WHERE code=?
+    """, (
+        code,
+    )).fetchone()
+
+    conn.close()
+
+    return row
 
 
 def get_movie_files(movie_id):
