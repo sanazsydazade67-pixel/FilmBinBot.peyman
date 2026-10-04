@@ -50,6 +50,20 @@ REQUIRED_CHATS = [
     ("@FilmBin_vs_ZarabanMusic", "گروه"),
 ]
 
+def generate_archive_code():
+    while True:
+        suffix = "".join(
+            secrets.choice(
+                string.ascii_letters + string.digits
+            )
+            for _ in range(8)
+        )
+
+        code = f"file_{suffix}"
+
+        if not database.get_archive_file_by_code(code):
+            return code
+
 # حذف خودکار پیام خوش‌آمدگویی
 AUTO_DELETE_SECONDS = int(
     os.getenv("AUTO_DELETE_SECONDS", "120")
@@ -1683,18 +1697,50 @@ async def archive_media_handler(update, context):
     # فقط کانال آرشیو
     if not message.chat:
         return
-        
+
     # -----------------------------------------------------
     # آرشیو ۲
     # -----------------------------------------------------
 
     if message.chat.id == -1003336530443:
 
+        # فقط ویدیو و فایل/document
+        file_id = None
+        file_type = None
+
+        if message.video:
+            file_id = message.video.file_id
+            file_type = "video"
+
+        elif message.document:
+            file_id = message.document.file_id
+            file_type = "document"
+
+        else:
+            return
+
+        # ساخت کد یکتا
+        code = generate_archive_code()
+
+        # ذخیره در دیتابیس
+        database.add_archive_file(
+            code,
+            file_id,
+            file_type,
+        )
+
+        # ساخت لینک دانلود
+        download_link = (
+            f"https://t.me/{BOT_USERNAME}?start={code}"
+        )
+
+        # ارسال لینک برای ادمین
         await context.bot.send_message(
             next(iter(ADMIN_IDS)),
             (
-                "✅ فایل در آرشیو ۲ دریافت شد!\n\n"
-                f"🆔 Message ID: {message.message_id}"
+                "✅ فایل آرشیو ۲ ثبت شد!\n\n"
+                f"🔑 کد فایل:\n{code}\n\n"
+                f"📥 لینک دانلود:\n{download_link}"
             ),
         )
 
