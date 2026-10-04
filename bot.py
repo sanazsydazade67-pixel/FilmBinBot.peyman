@@ -2819,6 +2819,74 @@ async def notifications_button(
             buttons
         ),
     )
+    
+# =========================================================
+# تغییر وضعیت اعلان‌ها
+# =========================================================
+
+async def notification_toggle(
+    update,
+    context,
+):
+
+    query = update.callback_query
+
+    await query.answer()
+
+    user_id = query.from_user.id
+
+    if query.data == "notify_on":
+
+        database.set_notifications_status(
+            user_id,
+            True,
+        )
+
+        text = (
+            "🔔 اعلان‌های فیلم جدید فعال شد.\n\n"
+            "از این به بعد هنگام انتشار فیلم جدید "
+            "به شما اطلاع داده می‌شود."
+        )
+
+    else:
+
+        database.set_notifications_status(
+            user_id,
+            False,
+        )
+
+        text = (
+            "🔕 اعلان‌های فیلم جدید خاموش شد.\n\n"
+            "دیگر اعلان فیلم‌های جدید برای شما ارسال نمی‌شود."
+        )
+
+    buttons = [
+        [
+            InlineKeyboardButton(
+                "🔔 روشن کردن اعلان‌ها",
+                callback_data="notify_on",
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                "🔕 خاموش کردن اعلان‌ها",
+                callback_data="notify_off",
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                "🔙 بازگشت",
+                callback_data="back_home",
+            )
+        ],
+    ]
+
+    await query.message.edit_text(
+        text,
+        reply_markup=InlineKeyboardMarkup(
+            buttons
+        ),
+    )
 
 # =========================================================
 # حذف فیلم
@@ -3338,6 +3406,13 @@ def main():
         CallbackQueryHandler(
             back_home_button,
             pattern=r"^back_home$",
+        )
+    )
+    
+    application.add_handler(
+        CallbackQueryHandler(
+            notification_toggle,
+            pattern=r"^notify_(on|off)$",
         )
     )
     
