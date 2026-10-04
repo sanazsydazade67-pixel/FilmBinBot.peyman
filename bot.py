@@ -1688,7 +1688,7 @@ async def archive_media_handler(update, context):
     # آرشیو ۲
     # -----------------------------------------------------
 
-    if message.chat.id == 1003336530443:
+    if message.chat.id == -1003336530443:
 
         await context.bot.send_message(
             next(iter(ADMIN_IDS)),
