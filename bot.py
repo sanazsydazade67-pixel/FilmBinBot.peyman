@@ -1670,6 +1670,16 @@ async def archive_media_handler(update, context):
     if message is None:
         return
 
+    print(
+        "CHANNEL ID:",
+        message.chat.id,
+    )
+
+    print(
+        "CHANNEL USERNAME:",
+        message.chat.username,
+    )
+
     # فقط کانال آرشیو
     if not message.chat:
         return
