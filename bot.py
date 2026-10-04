@@ -3411,6 +3411,13 @@ def main():
     
     application.add_handler(
         CallbackQueryHandler(
+            notifications_button,
+            pattern=r"^notifications$",
+        )
+    )
+    
+    application.add_handler(
+        CallbackQueryHandler(
             notification_toggle,
             pattern=r"^notify_(on|off)$",
         )
