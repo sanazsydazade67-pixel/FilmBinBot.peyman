@@ -228,6 +228,57 @@ async def start(
         "START PARAMETER:",
         start_code,
     )
+    
+    # -----------------------------------------------------
+    # لینک فایل آرشیو ۲
+    # -----------------------------------------------------
+
+    if start_code.startswith("file_"):
+
+        archive_file = database.get_archive_file_by_code(
+            start_code
+        )
+
+        print(
+            "ARCHIVE FILE FOUND:",
+            bool(archive_file),
+        )
+
+        if not archive_file:
+            await update.message.reply_text(
+                "❌ لینک فایل معتبر نیست یا فایل حذف شده است."
+            )
+            return
+
+        # بررسی عضویت واقعی
+        missing = await get_missing_memberships(
+            context.bot,
+            user.id,
+        )
+
+        if missing:
+            # فعلاً فقط اعلام می‌کنیم که عضویت کامل نیست
+            await update.message.reply_text(
+                "🔐 برای دریافت فایل ابتدا باید در کانال‌ها و گروه مشخص‌شده عضو شوید."
+            )
+            return
+
+        # ارسال فایل
+        if archive_file["file_type"] == "video":
+
+            await context.bot.send_video(
+                user.id,
+                archive_file["file_id"],
+            )
+
+        elif archive_file["file_type"] == "document":
+
+            await context.bot.send_document(
+                user.id,
+                archive_file["file_id"],
+            )
+
+        return
 
     quality = None
 
