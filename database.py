@@ -84,6 +84,15 @@ def init_db():
     )
     """)
     
+       # اضافه کردن وضعیت اعلان برای کاربران قدیمی و جدید
+    try:
+        cur.execute("""
+            ALTER TABLE users
+            ADD COLUMN notifications_enabled INTEGER DEFAULT 1
+        """)
+    except Exception:
+        pass 
+    
     cur.execute("""
     CREATE TABLE IF NOT EXISTS downloads (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
