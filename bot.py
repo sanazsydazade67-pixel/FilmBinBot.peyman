@@ -359,6 +359,12 @@ async def send_welcome(
         ],
         [
             InlineKeyboardButton(
+                "🔔 تنظیم اعلان‌ها",
+                callback_data="notifications",
+            )
+        ], 
+        [
+            InlineKeyboardButton(
                 "📖 راهنمای دریافت",
                 callback_data="guide",
             )
