@@ -351,6 +351,51 @@ def set_movie_status(movie_id, status):
 
     conn.commit()
     conn.close()
+    
+# =========================================================
+# وضعیت اعلان‌ها
+# =========================================================
+
+def get_notifications_status(user_id):
+
+    conn = get_db()
+
+    row = conn.execute("""
+        SELECT notifications_enabled
+        FROM users
+        WHERE user_id=?
+    """, (
+        user_id,
+    )).fetchone()
+
+    conn.close()
+
+    if not row:
+        return True
+
+    return bool(
+        row["notifications_enabled"]
+    )
+    
+# =========================================================
+# تغییر وضعیت اعلان‌ها
+# =========================================================
+
+def set_notifications_status(user_id, enabled):
+
+    conn = get_db()
+
+    conn.execute("""
+        UPDATE users
+        SET notifications_enabled=?
+        WHERE user_id=?
+    """, (
+        1 if enabled else 0,
+        user_id,
+    ))
+
+    conn.commit()
+    conn.close()
 
 
 # =========================
