@@ -1265,9 +1265,17 @@ async def text_router(
             None,
         )
 
+        search_text = update.message.text.strip()
+
+        search_text = re.sub(
+            r"^\s*سریال\s*:?\s*",
+            "",
+            search_text,
+        )
+
         rows = database.search_movies(
             normalize(
-                update.message.text
+                search_text
             )
         )
 
