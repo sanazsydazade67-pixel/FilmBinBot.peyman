@@ -396,6 +396,27 @@ def set_notifications_status(user_id, enabled):
 
     conn.commit()
     conn.close()
+    
+# =========================================================
+# کاربران فعال برای دریافت اعلان
+# =========================================================
+
+def get_notification_users():
+
+    conn = get_db()
+
+    rows = conn.execute("""
+        SELECT user_id
+        FROM users
+        WHERE notifications_enabled=1
+    """).fetchall()
+
+    conn.close()
+
+    return [
+        row["user_id"]
+        for row in rows
+    ]
 
 
 # =========================
