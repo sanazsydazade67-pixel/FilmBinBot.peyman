@@ -511,6 +511,7 @@ async def show_membership(
     context,
     movie_id=None,
     quality=None,
+    language_type=None,
     archive_code=None,
 ):
 
@@ -531,6 +532,7 @@ async def show_membership(
         )
 
     quality_value = quality or "all"
+    language_value = language_type or "all"
 
     if archive_code:
 
@@ -545,13 +547,13 @@ async def show_membership(
         callback_data = (
             f"check:"
             f"{movie_id}:"
-            f"{quality_value}"
+            f"{quality_value}:"
+            f"{language_value}"
         )
 
     buttons.append(
-        [ 
+        [
             InlineKeyboardButton(
-    
                 "✅ بررسی عضویت",
                 callback_data=callback_data,
             )
@@ -584,7 +586,6 @@ async def show_membership(
             ),
         )
 
-
 # =========================================================
 # بررسی عضویت
 # =========================================================
@@ -611,6 +612,16 @@ async def check_membership(
 
         movie_id = int(parts[1])
         quality = parts[2]
+
+        language_type = None
+
+        if len(parts) >= 4:
+
+            language_type = parts[3]
+
+        if language_type == "all":
+
+            language_type = None
 
     # -----------------------------------------------------
     # بررسی واقعی عضویت
@@ -681,21 +692,22 @@ async def check_membership(
             )
 
         return
+        
+# -----------------------------------------------------
+# ارسال فیلم
+# -----------------------------------------------------
 
-    # -----------------------------------------------------
-    # ارسال فیلم
-    # -----------------------------------------------------
+if quality == "all":
 
-    if quality == "all":
+    quality = None
 
-        quality = None
-
-    await send_movie_to_user(
-        user_id,
-        movie_id,
-        quality,
-        context,
-    )  
+await send_movie_to_user(
+    user_id,
+    movie_id,
+    quality,
+    context,
+    language_type,
+)
 
 # =========================================================
 # راهنمای دریافت فیلم
