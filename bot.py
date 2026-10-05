@@ -2372,15 +2372,21 @@ async def show_preview(
 
     data = context.user_data
 
-    qualities = [
-        quality
-        for quality, value
-        in data.get(
-            "qualities",
-            {},
-        ).items()
-        if value
-    ]
+    qualities = []
+
+    for item in data.get(
+        "qualities",
+        [],
+    ):
+
+        quality = item[0]
+        language_type = item[1]
+
+        if quality not in qualities:
+
+            qualities.append(
+                quality
+            )
 
     if not qualities:
 
