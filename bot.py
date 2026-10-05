@@ -403,7 +403,7 @@ async def start(
         )
 
         return
-
+        
     # -----------------------------------------------------
     # اگر عضو نیست → نمایش صفحه عضویت
     # -----------------------------------------------------
@@ -418,6 +418,7 @@ async def start(
         context,
         movie["id"],
         quality,
+        language_type,
     )
 
 
@@ -734,6 +735,7 @@ async def send_movie_to_user(
     movie_id,
     quality,
     context,
+    language_type=None,
 ):
 
     movie = database.get_movie(
@@ -762,20 +764,10 @@ async def send_movie_to_user(
         movie_id
     )
 
-    selected = None
-
-    for file in files:
-
-        if quality and file["quality"] == quality:
-
-            selected = file
-
-            break
-            
     # -----------------------------------------------------
-    # اگر کیفیت مشخص نشده
+    # اگر کیفیت مشخص نشده → نمایش کیفیت‌های موجود
     # -----------------------------------------------------
-    
+
     if not quality:
 
         buttons = []
@@ -794,18 +786,30 @@ async def send_movie_to_user(
                 ),
             )
 
+        available_qualities = []
+
         for file in files:
+
+            file_quality = file["quality"]
+
+            if file_quality not in available_qualities:
+
+                available_qualities.append(
+                    file_quality
+                )
+
+        for file_quality in available_qualities:
 
             link = (
                 f"https://t.me/{BOT_USERNAME}"
                 f"?start="
-                f"{movie['code']}_{file['quality']}"
+                f"{movie['code']}_{file_quality}"
             )
 
             buttons.append(
                 [
                     InlineKeyboardButton(
-                        f"📥 {file['quality']}",
+                        f"📥 {file_quality}",
                         url=link,
                     )
                 ]
@@ -844,16 +848,118 @@ async def send_movie_to_user(
         )
 
         return
-        
+
     # -----------------------------------------------------
-    # کیفیت موجود نیست
+    # فایل‌های موجود برای کیفیت انتخاب‌شده
+    # -----------------------------------------------------
+
+    quality_files = []
+
+    for file in files:
+
+        if file["quality"] == quality:
+
+            quality_files.append(
+                file
+            )
+
+    if not quality_files:
+
+        await context.bot.send_message(
+            user_id,
+            "❌ این کیفیت برای فیلم موجود نیست.",
+        )
+
+        return
+
+    # -----------------------------------------------------
+    # اگر نوع فایل مشخص نشده → نمایش دوبله / زیرنویس
+    # -----------------------------------------------------
+
+    if not language_type:
+
+        language_buttons = []
+
+        has_dubbed = False
+        has_subtitle = False
+
+        for file in quality_files:
+
+            if file["language_type"] == "dubbed":
+
+                has_dubbed = True
+
+            elif file["language_type"] == "subtitle":
+
+                has_subtitle = True
+
+        if has_dubbed:
+
+            dubbed_link = (
+                f"https://t.me/{BOT_USERNAME}"
+                f"?start="
+                f"{movie['code']}_{quality}_dubbed"
+            )
+
+            language_buttons.append(
+                [
+                    InlineKeyboardButton(
+                        "🇮🇷 دوبله",
+                        url=dubbed_link,
+                    )
+                ]
+            )
+
+        if has_subtitle:
+
+            subtitle_link = (
+                f"https://t.me/{BOT_USERNAME}"
+                f"?start="
+                f"{movie['code']}_{quality}_subtitle"
+            )
+
+            language_buttons.append(
+                [
+                    InlineKeyboardButton(
+                        "📝 زیرنویس فارسی",
+                        url=subtitle_link,
+                    )
+                ]
+            )
+
+        await context.bot.send_message(
+            user_id,
+            f"📥 نوع فایل کیفیت {quality} را انتخاب کنید:",
+            reply_markup=InlineKeyboardMarkup(
+                language_buttons
+            ),
+        )
+
+        return
+
+    # -----------------------------------------------------
+    # پیدا کردن فایل دقیق
+    # -----------------------------------------------------
+
+    selected = None
+
+    for file in quality_files:
+
+        if file["language_type"] == language_type:
+
+            selected = file
+
+            break
+
+    # -----------------------------------------------------
+    # فایل دقیق موجود نیست
     # -----------------------------------------------------
 
     if not selected:
 
         await context.bot.send_message(
             user_id,
-            "❌ این کیفیت برای فیلم موجود نیست.",
+            "❌ این نوع فایل برای این کیفیت موجود نیست.",
         )
 
         return
@@ -903,6 +1009,7 @@ async def send_movie_to_user(
             user_id,
             "❌ ارسال فایل انجام نشد.",
         )
+
         
 # =========================================================
 # ارسال اعلان فیلم جدید
