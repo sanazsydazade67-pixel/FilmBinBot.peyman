@@ -84,12 +84,19 @@ WAIT_STARS = 7
 WAIT_SYNOPSIS = 8
 WAIT_SUBTITLE = 9
 
-WAIT_360 = 10
-WAIT_480 = 11
-WAIT_720 = 12
-WAIT_1080 = 13
+WAIT_360_DUBBED = 10
+WAIT_360_SUBTITLE = 11
 
-WAIT_CONFIRM = 14
+WAIT_480_DUBBED = 12
+WAIT_480_SUBTITLE = 13
+
+WAIT_720_DUBBED = 14
+WAIT_720_SUBTITLE = 15
+
+WAIT_1080_DUBBED = 16
+WAIT_1080_SUBTITLE = 17
+
+WAIT_CONFIRM = 18
 
 
 # =========================================================
@@ -1645,32 +1652,38 @@ async def registration_text(
     # -----------------------------------------------------
 
     if state in (
-        WAIT_360,
-        WAIT_480,
-        WAIT_720,
-        WAIT_1080,
+        WAIT_360_DUBBED,
+        WAIT_360_SUBTITLE,
+        WAIT_480_DUBBED,
+        WAIT_480_SUBTITLE,
+        WAIT_720_DUBBED,
+        WAIT_720_SUBTITLE,
+        WAIT_1080_DUBBED,
+        WAIT_1080_SUBTITLE,
     ):
 
         if text.lower() == "/skip":
 
-            quality_map = {
-                WAIT_360: "360p",
-                WAIT_480: "480p",
-                WAIT_720: "720p",
-                WAIT_1080: "1080p",
+            state_map = {
+                WAIT_360_DUBBED: ("360p", "dubbed"),
+                WAIT_360_SUBTITLE: ("360p", "subtitle"),
+
+                WAIT_480_DUBBED: ("480p", "dubbed"),
+                WAIT_480_SUBTITLE: ("480p", "subtitle"),
+
+                WAIT_720_DUBBED: ("720p", "dubbed"),
+                WAIT_720_SUBTITLE: ("720p", "subtitle"),
+
+                WAIT_1080_DUBBED: ("1080p", "dubbed"),
+                WAIT_1080_SUBTITLE: ("1080p", "subtitle"),
             }
 
-            quality = quality_map[state]
-
-            context.user_data.setdefault(
-                "qualities",
-                {},
-            )[quality] = None
+            quality, language_type = state_map[state]
 
             await next_quality(
                 update,
                 context,
-                quality,
+                f"{quality}_{language_type}",
             )
 
         else:
@@ -2279,25 +2292,48 @@ async def next_quality(
 ):
 
     next_state = {
-        "360p": WAIT_480,
-        "480p": WAIT_720,
-        "720p": WAIT_1080,
-        "1080p": WAIT_CONFIRM,
+        "360p_dubbed": WAIT_360_SUBTITLE,
+        "360p_subtitle": WAIT_480_DUBBED,
+
+        "480p_dubbed": WAIT_480_SUBTITLE,
+        "480p_subtitle": WAIT_720_DUBBED,
+
+        "720p_dubbed": WAIT_720_SUBTITLE,
+        "720p_subtitle": WAIT_1080_DUBBED,
+
+        "1080p_dubbed": WAIT_1080_SUBTITLE,
+        "1080p_subtitle": WAIT_CONFIRM,
     }[current_quality]
 
     context.user_data["state"] = next_state
 
-    if current_quality != "1080p":
+    next_message = {
+        WAIT_360_SUBTITLE:
+            "📥 فایل زیرنویس فارسی کیفیت 360p را بفرست یا /skip:",
 
-        next_quality_name = {
-            WAIT_480: "480p",
-            WAIT_720: "720p",
-            WAIT_1080: "1080p",
-        }[next_state]
+        WAIT_480_DUBBED:
+            "📥 فایل دوبله کیفیت 480p را بفرست یا /skip:",
+
+        WAIT_480_SUBTITLE:
+            "📥 فایل زیرنویس فارسی کیفیت 480p را بفرست یا /skip:",
+
+        WAIT_720_DUBBED:
+            "📥 فایل دوبله کیفیت 720p را بفرست یا /skip:",
+
+        WAIT_720_SUBTITLE:
+            "📥 فایل زیرنویس فارسی کیفیت 720p را بفرست یا /skip:",
+
+        WAIT_1080_DUBBED:
+            "📥 فایل دوبله کیفیت 1080p را بفرست یا /skip:",
+
+        WAIT_1080_SUBTITLE:
+            "📥 فایل زیرنویس فارسی کیفیت 1080p را بفرست یا /skip:",
+    }
+
+    if next_state != WAIT_CONFIRM:
 
         await update.message.reply_text(
-            f"📥 فایل کیفیت {next_quality_name} را "
-            f"بفرست یا /skip:"
+            next_message[next_state]
         )
 
     else:
@@ -3261,31 +3297,33 @@ async def skip_command(
         )
 
         return
-
+        
     # -----------------------------------------------------
     # کیفیت‌ها
     # -----------------------------------------------------
 
     quality_map = {
-        WAIT_360: "360p",
-        WAIT_480: "480p",
-        WAIT_720: "720p",
-        WAIT_1080: "1080p",
+        WAIT_360_DUBBED: ("360p", "dubbed"),
+        WAIT_360_SUBTITLE: ("360p", "subtitle"),
+
+        WAIT_480_DUBBED: ("480p", "dubbed"),
+        WAIT_480_SUBTITLE: ("480p", "subtitle"),
+
+        WAIT_720_DUBBED: ("720p", "dubbed"),
+        WAIT_720_SUBTITLE: ("720p", "subtitle"),
+
+        WAIT_1080_DUBBED: ("1080p", "dubbed"),
+        WAIT_1080_SUBTITLE: ("1080p", "subtitle"),
     }
 
     if state in quality_map:
 
-        quality = quality_map[state]
-
-        context.user_data.setdefault(
-            "qualities",
-            {},
-        )[quality] = None
+        quality, language_type = quality_map[state]
 
         await next_quality(
             update,
             context,
-            quality,
+            f"{quality}_{language_type}",
         )
 
         return
