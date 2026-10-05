@@ -2230,21 +2230,28 @@ async def media_router(update, context):
         )
 
         return
-
+        
     # -----------------------------------------------------
     # کیفیت‌ها
     # -----------------------------------------------------
 
     quality_map = {
-        WAIT_360: "360p",
-        WAIT_480: "480p",
-        WAIT_720: "720p",
-        WAIT_1080: "1080p",
+        WAIT_360_DUBBED: ("360p", "dubbed"),
+        WAIT_360_SUBTITLE: ("360p", "subtitle"),
+
+        WAIT_480_DUBBED: ("480p", "dubbed"),
+        WAIT_480_SUBTITLE: ("480p", "subtitle"),
+
+        WAIT_720_DUBBED: ("720p", "dubbed"),
+        WAIT_720_SUBTITLE: ("720p", "subtitle"),
+
+        WAIT_1080_DUBBED: ("1080p", "dubbed"),
+        WAIT_1080_SUBTITLE: ("1080p", "subtitle"),
     }
 
     if state in quality_map:
 
-        quality = quality_map[state]
+        quality, language_type = quality_map[state]
 
         if update.message.video:
 
@@ -2268,17 +2275,23 @@ async def media_router(update, context):
 
         context.user_data.setdefault(
             "qualities",
-            {},
-        )[quality] = (
-            file_id,
-            file_type,
+            [],
+        ).append(
+            (
+                quality,
+                language_type,
+                file_id,
+                file_type,
+            )
         )
 
         await next_quality(
             update,
             context,
-            quality,
+            f"{quality}_{language_type}",
         )
+
+        return
 
 
 # =========================================================
@@ -2504,19 +2517,23 @@ async def registration_button(
             }
         )
 
-        for quality, item in data.get(
+        for item in data.get(
             "qualities",
-            {},
-        ).items():
+            [],
+        ):
 
-            if item:
+            quality = item[0]
+            language_type = item[1]
+            file_id = item[2]
+            file_type = item[3]
 
-                database.add_movie_file(
-                    movie_id,
-                    quality,
-                    item[0],
-                    item[1],
-                )
+            database.add_movie_file(
+                movie_id,
+                quality,
+                file_id,
+                file_type,
+                language_type,
+            )
 
         buttons = [
             [
