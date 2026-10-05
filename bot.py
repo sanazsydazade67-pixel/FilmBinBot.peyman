@@ -293,16 +293,40 @@ async def start(
         return
 
     quality = None
+    language_type = None
 
     movie_code = start_code
 
     parts = start_code.split("_")
 
     # -----------------------------------------------------
-    # تشخیص کیفیت
+    # تشخیص کیفیت و نوع فایل
     # -----------------------------------------------------
 
-    if len(parts) >= 3:
+    if len(parts) >= 4:
+
+        possible_language = parts[-1].lower()
+
+        possible_quality = parts[-2].lower()
+
+        if possible_quality in (
+            "360p",
+            "480p",
+            "720p",
+            "1080p",
+        ) and possible_language in (
+            "dubbed",
+            "subtitle",
+        ):
+
+            quality = possible_quality
+            language_type = possible_language
+
+            movie_code = "_".join(
+                parts[:-2]
+            )
+
+    elif len(parts) >= 3:
 
         possible_quality = parts[-1].lower()
 
@@ -358,7 +382,7 @@ async def start(
         context.bot,
         user.id,
     )
-
+    
     # -----------------------------------------------------
     # اگر عضو همه است → مستقیم فیلم
     # -----------------------------------------------------
@@ -375,6 +399,7 @@ async def start(
             movie["id"],
             quality,
             context,
+            language_type,
         )
 
         return
