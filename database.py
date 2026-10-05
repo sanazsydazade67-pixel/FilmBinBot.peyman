@@ -92,6 +92,54 @@ def init_db():
         pass
 
     conn.commit()
+
+    # -----------------------------------------------------
+    # مرحله ۲ — اصلاح محدودیت فایل‌های فیلم
+    # اجازه دوبله و زیرنویس همزمان برای یک کیفیت
+    # -----------------------------------------------------
+
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS movie_files_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        movie_id INTEGER NOT NULL,
+        quality TEXT NOT NULL,
+        file_id TEXT NOT NULL,
+        file_type TEXT NOT NULL,
+        language_type TEXT NOT NULL DEFAULT 'dubbed',
+        UNIQUE(movie_id, quality, language_type)
+    )
+    """)
+
+    cur.execute("""
+    INSERT OR IGNORE INTO movie_files_new
+    (
+        id,
+        movie_id,
+        quality,
+        file_id,
+        file_type,
+        language_type
+    )
+    SELECT
+        id,
+        movie_id,
+        quality,
+        file_id,
+        file_type,
+        language_type
+    FROM movie_files
+    """)
+
+    cur.execute("""
+    DROP TABLE movie_files
+    """)
+
+    cur.execute("""
+    ALTER TABLE movie_files_new
+    RENAME TO movie_files
+    """)
+
+    conn.commit()
     
     cur.execute("""
     CREATE TABLE IF NOT EXISTS users (
