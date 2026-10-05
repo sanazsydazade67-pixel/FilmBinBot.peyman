@@ -585,7 +585,14 @@ def get_movie_files(movie_id):
     conn = get_db()
 
     rows = conn.execute("""
-    SELECT * FROM movie_files
+    SELECT
+        id,
+        movie_id,
+        quality,
+        file_id,
+        file_type,
+        language_type
+    FROM movie_files
     WHERE movie_id=?
     ORDER BY
         CASE quality
@@ -594,6 +601,11 @@ def get_movie_files(movie_id):
         WHEN '720p' THEN 3
         WHEN '1080p' THEN 4
         ELSE 5
+        END,
+        CASE language_type
+        WHEN 'dubbed' THEN 1
+        WHEN 'subtitle' THEN 2
+        ELSE 3
         END
     """, (
         movie_id,
