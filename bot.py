@@ -3311,10 +3311,10 @@ async def skip_command(
 
         context.user_data[
             "state"
-        ] = WAIT_360
+        ] = WAIT_360_DUBBED
 
         await update.message.reply_text(
-            "📥 فایل کیفیت 360p را بفرست یا /skip:"
+            "📥 فایل دوبله کیفیت 360p را بفرست یا /skip:"
         )
 
         return
