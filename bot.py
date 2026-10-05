@@ -1714,10 +1714,10 @@ async def registration_text(
                 "trailer_type"
             ] = None
 
-            context.user_data["state"] = WAIT_360
+            context.user_data["state"] = WAIT_360_DUBBED
 
             await update.message.reply_text(
-                "📥 فایل کیفیت 360p را بفرست یا /skip:"
+                "📥 فایل دوبله کیفیت 360p را بفرست یا /skip:"
             )
 
         else:
