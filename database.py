@@ -502,24 +502,31 @@ def add_movie_file(
     movie_id,
     quality,
     file_id,
-    file_type
+    file_type,
+    language_type="dubbed"
 ):
     conn = get_db()
 
     conn.execute("""
-    INSERT OR REPLACE INTO movie_files
+    INSERT INTO movie_files
     (
         movie_id,
         quality,
         file_id,
-        file_type
+        file_type,
+        language_type
     )
-    VALUES (?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(movie_id, quality, language_type)
+    DO UPDATE SET
+        file_id=excluded.file_id,
+        file_type=excluded.file_type
     """, (
         movie_id,
         quality,
         file_id,
-        file_type
+        file_type,
+        language_type
     ))
 
     conn.commit()
