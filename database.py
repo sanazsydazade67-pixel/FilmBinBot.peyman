@@ -75,6 +75,23 @@ def init_db():
         UNIQUE(movie_id, quality)
     )
     """)
+
+    # -----------------------------------------------------
+    # افزودن نوع فایل دوبله / زیرنویس
+    # -----------------------------------------------------
+
+    try:
+
+        cur.execute("""
+        ALTER TABLE movie_files
+        ADD COLUMN language_type TEXT NOT NULL DEFAULT 'dubbed'
+        """)
+
+    except Exception:
+
+        pass
+
+    conn.commit()
     
     cur.execute("""
     CREATE TABLE IF NOT EXISTS users (
