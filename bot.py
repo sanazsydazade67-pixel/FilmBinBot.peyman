@@ -692,22 +692,21 @@ async def check_membership(
             )
 
         return
-        
-# -----------------------------------------------------
-# ارسال فیلم
-# -----------------------------------------------------
 
-if quality == "all":
+    # -----------------------------------------------------
+    # ارسال فیلم
+    # -----------------------------------------------------
 
-    quality = None
+    if quality == "all":
+        quality = None
 
-await send_movie_to_user(
-    user_id,
-    movie_id,
-    quality,
-    context,
-    language_type,
-)
+    await send_movie_to_user(
+        user_id,
+        movie_id,
+        quality,
+        context,
+        language_type,
+    )
 
 # =========================================================
 # راهنمای دریافت فیلم
