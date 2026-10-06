@@ -44,9 +44,9 @@ FILM_CHANNEL = "@FilmBinTV15FilmBinMovie"
 ARCHIVE_CHANNEL = "@P_sh_Archive"
 
 # عضویت اجباری
-REQUIRED_CHATS = [
+REDREQUIRED_CHATS = [
     ("@Istgah_Khande118", "کانال اول"),
-    ("@ZarabanHeart_Music", "کانال دوم"),
+    ("@zapasMusiIstgah_Khande118", "کانال دوم"),
     ("@FilmBin_vs_ZarabanMusic", "گروه"),
 ]
 
