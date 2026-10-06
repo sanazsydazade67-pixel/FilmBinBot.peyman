@@ -1410,6 +1410,10 @@ async def text_router(
 
     user = update.effective_user
 
+    # پیام‌های کانال کاربر ندارند
+    if user is None:
+        return
+
     database.add_user(user.id)
 
     state = context.user_data.get(
