@@ -131,53 +131,15 @@ def normalize(text):
 
 
 # =========================================================
-# بررسی واقعی عضویت کاربر
+# عضویت اجباری غیرفعال است
 # =========================================================
 
 async def get_missing_memberships(
     bot,
     user_id,
 ):
-
-    missing = []
-
-    for chat, name in REQUIRED_CHATS:
-
-        try:
-
-            member = await bot.get_chat_member(
-                chat,
-                user_id,
-            )
-
-            # کاربر از کانال/گروه خارج شده یا بن شده
-            if member.status in (
-                ChatMemberStatus.LEFT,
-                ChatMemberStatus.BANNED,
-            ):
-
-                missing.append(name)
-
-            # برای وضعیت Restricted
-            elif (
-                member.status == ChatMemberStatus.RESTRICTED
-                and hasattr(member, "is_member")
-                and not member.is_member
-            ):
-
-                missing.append(name)
-
-        except Exception as error:
-
-            print(
-                f"MEMBERSHIP CHECK ERROR "
-                f"{chat}: {error}"
-            )
-
-            missing.append(name)
-
-    return missing
-
+    return []
+    
 
 # =========================================================
 # حذف خودکار
