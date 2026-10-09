@@ -3020,7 +3020,6 @@ await query.message.edit_text(
     text,
     reply_markup=InlineKeyboardMarkup(buttons),
 )
-```
  
 # =========================================================
  
