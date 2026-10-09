@@ -162,56 +162,39 @@ async def delete_later(context):
 
 
 # =========================================================
-# /start
+# /start - بدون عضویت اجباری
 # =========================================================
 
 async def start(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
 ):
-
     user = update.effective_user
+
+    if user is None or update.message is None:
+        return
 
     database.add_user(user.id)
 
-    # -----------------------------------------------------
     # /start بدون لینک
-    # -----------------------------------------------------
-
     if not context.args:
-
-        await send_welcome(
-            update,
-            context,
-        )
-
+        await send_welcome(update, context)
         return
 
-    # -----------------------------------------------------
-    # دریافت کد فیلم
-    # -----------------------------------------------------
-
     start_code = context.args[0].strip()
+    user_id = user.id
 
-    print(
-        "START PARAMETER:",
-        start_code,
-    )
-    
-    # -----------------------------------------------------
-    # لینک فایل آرشیو ۲
-    # -----------------------------------------------------
+    print("START PARAMETER:", start_code)
 
+    # -----------------------------------------------------
+    # دریافت فایل آرشیو بدون عضویت اجباری
+    # -----------------------------------------------------
     if start_code.startswith("file_"):
-
         archive_file = database.get_archive_file_by_code(
             start_code
         )
 
-        print(
-            "ARCHIVE FILE FOUND:",
-            bool(archive_file),
-        )
+        print("ARCHIVE FILE FOUND:", bool(archive_file))
 
         if not archive_file:
             await update.message.reply_text(
@@ -219,167 +202,87 @@ async def start(
             )
             return
 
-        # بررسی عضویت واقعی
-        missing = await get_missing_memberships(
-            context.bot,
-            user.id,
-        )
-
-        if missing:
-
-            await show_membership(
-                update,
-                context,
-                movie_id=None,
-                quality=None,
-                archive_code=start_code,
-            )
-
-            return
-
-        # ارسال فایل
-        if archive_file["file_type"] == "video":
-
-            await context.bot.send_video(
-                user.id,
-                archive_file["file_id"],
-            )
-
-        elif archive_file["file_type"] == "document":
-
-            await context.bot.send_document(
-                user.id,
-                archive_file["file_id"],
+        try:
+            if archive_file["file_type"] == "video":
+                await context.bot.send_video(
+                    chat_id=user_id,
+                    video=archive_file["file_id"],
+                )
+            elif archive_file["file_type"] == "document":
+                await context.bot.send_document(
+                    chat_id=user_id,
+                    document=archive_file["file_id"],
+                )
+            else:
+                await update.message.reply_text(
+                    "❌ نوع فایل پشتیبانی نمی‌شود."
+                )
+        except Exception as e:
+            print("ARCHIVE SEND ERROR:", e)
+            await update.message.reply_text(
+                "❌ ارسال فایل آرشیو ناموفق بود."
             )
 
         return
-
-    quality = None
-    language_type = None
-
-    movie_code = start_code
-
-    parts = start_code.split("_")
 
     # -----------------------------------------------------
     # تشخیص کیفیت و نوع فایل
     # -----------------------------------------------------
+    quality = None
+    language_type = None
+    movie_code = start_code
+    parts = start_code.split("_")
 
-    if len(parts) >= 4:
-
+    if len(parts) >= 3:
         possible_language = parts[-1].lower()
-
         possible_quality = parts[-2].lower()
 
-        if possible_quality in (
-            "360p",
-            "480p",
-            "720p",
-            "1080p",
-        ) and possible_language in (
-            "dubbed",
-            "subtitle",
+        if (
+            possible_quality in (
+                "360p", "480p", "720p", "1080p"
+            )
+            and possible_language in (
+                "dubbed", "subtitle"
+            )
         ):
-
             quality = possible_quality
             language_type = possible_language
+            movie_code = "_".join(parts[:-2])
 
-            movie_code = "_".join(
-                parts[:-2]
-            )
+        else:
+            possible_quality = parts[-1].lower()
 
-    elif len(parts) >= 3:
+            if possible_quality in (
+                "360p", "480p", "720p", "1080p"
+            ):
+                quality = possible_quality
+                movie_code = "_".join(parts[:-1])
 
-        possible_quality = parts[-1].lower()
-
-        if possible_quality in (
-            "360p",
-            "480p",
-            "720p",
-            "1080p",
-        ):
-
-            quality = possible_quality
-
-            movie_code = "_".join(
-                parts[:-1]
-            )
-
-    print(
-        "MOVIE CODE:",
-        movie_code,
-    )
-
-    print(
-        "QUALITY:",
-        quality,
-    )
+    print("MOVIE CODE:", movie_code)
+    print("QUALITY:", quality)
+    print("LANGUAGE TYPE:", language_type)
 
     # -----------------------------------------------------
     # پیدا کردن فیلم
     # -----------------------------------------------------
+    movie = database.get_movie_by_code(movie_code)
 
-    movie = database.get_movie_by_code(
-        movie_code
-    )
-
-    print(
-        "MOVIE FOUND:",
-        bool(movie),
-    )
+    print("MOVIE FOUND:", bool(movie))
 
     if not movie:
-
         await update.message.reply_text(
             "❌ لینک فیلم معتبر نیست یا فیلم حذف شده است."
         )
-
         return
 
     # -----------------------------------------------------
-    # بررسی عضویت واقعی در همین لحظه
+    # ارسال مستقیم فیلم بدون عضویت اجباری
     # -----------------------------------------------------
-
-    missing = await get_missing_memberships(
-        context.bot,
-        user.id,
-    )
-    
-    # -----------------------------------------------------
-    # اگر عضو همه است → مستقیم فیلم
-    # -----------------------------------------------------
-
-    if not missing:
-
-        print(
-            "USER IS MEMBER OF ALL REQUIRED CHATS:",
-            user.id,
-        )
-
-        await send_movie_to_user(
-            user.id,
-            movie["id"],
-            quality,
-            context,
-            language_type,
-        )
-
-        return
-        
-    # -----------------------------------------------------
-    # اگر عضو نیست → نمایش صفحه عضویت
-    # -----------------------------------------------------
-
-    print(
-        "MISSING MEMBERSHIPS:",
-        missing,
-    )
-
-    await show_membership(
-        update,
-        context,
+    await send_movie_to_user(
+        user_id,
         movie["id"],
         quality,
+        context,
         language_type,
     )
 
@@ -477,155 +380,84 @@ async def show_membership(
     archive_code=None,
 ):
     if update.callback_query:
-        await update.callback_query.answer(
-            "عضویت اجباری غیرفعال است."
-        )
-        
+        await update.callback_query.answer()
 
-    buttons = []
-
-    for chat, name in REQUIRED_CHATS:
-
-        buttons.append(
-            [
-                InlineKeyboardButton(
-                    f"📢 عضویت در {name}",
-                    url=(
-                        f"https://t.me/"
-                        f"{chat.lstrip('@')}"
-                    ),
-                )
-            ]
-        )
-
-    quality_value = quality or "all"
-    language_value = language_type or "all"
-
-    if archive_code:
-
-        callback_data = (
-            f"check:"
-            f"file:"
-            f"{archive_code}"
-        )
-
-    else:
-
-        callback_data = (
-            f"check:"
-            f"{movie_id}:"
-            f"{quality_value}:"
-            f"{language_value}"
-        )
-
-    buttons.append(
-        [
-            InlineKeyboardButton(
-                "✅ بررسی عضویت",
-                callback_data=callback_data,
-            )
-        ]
-    )
-
-    text = (
-        "🔐 برای دریافت فیلم، ابتدا در موارد زیر عضو شوید:\n\n"
-        "1️⃣ کانال اول\n"
-        "2️⃣ کانال دوم\n"
-        "3️⃣ گروه فیلم‌بین\n\n"
-        "بعد از عضویت روی «✅ بررسی عضویت» بزنید."
-    )
+    user_id = None
 
     if update.callback_query:
+        user_id = update.callback_query.from_user.id
+    elif update.effective_user:
+        user_id = update.effective_user.id
 
-        await update.callback_query.message.reply_text(
-            text,
-            reply_markup=InlineKeyboardMarkup(
-                buttons
-            ),
+    if not user_id:
+        return
+
+    # ارسال فایل آرشیو
+    if archive_code:
+        archive_file = database.get_archive_file_by_code(
+            archive_code
         )
 
-    else:
+        if not archive_file:
+            message = "❌ فایل آرشیو پیدا نشد."
+            if update.callback_query:
+                await update.callback_query.message.reply_text(message)
+            elif update.message:
+                await update.message.reply_text(message)
+            return
 
-        await update.message.reply_text(
-            text,
-            reply_markup=InlineKeyboardMarkup(
-                buttons
-            ),
+        try:
+            if archive_file["file_type"] == "video":
+                await context.bot.send_video(
+                    chat_id=user_id,
+                    video=archive_file["file_id"],
+                )
+            elif archive_file["file_type"] == "document":
+                await context.bot.send_document(
+                    chat_id=user_id,
+                    document=archive_file["file_id"],
+                )
+            else:
+                await context.bot.send_message(
+                    chat_id=user_id,
+                    text="❌ نوع فایل پشتیبانی نمی‌شود.",
+                )
+        except Exception as e:
+            print("ARCHIVE SEND ERROR:", e)
+
+        return
+
+    # ارسال مستقیم فیلم
+    if movie_id is not None:
+        await send_movie_to_user(
+            user_id,
+            movie_id,
+            quality,
+            context,
+            language_type,
         )
+
 
 # =========================================================
-# بررسی عضویت
+# بررسی لینک‌های قدیمی
 # =========================================================
 
 async def check_membership(
     update,
     context,
 ):
-
     query = update.callback_query
+
+    if query is None:
+        return
 
     parts = query.data.split(":")
 
-    user_id = query.from_user.id
-
-    # فایل آرشیو ۲
-    if parts[1] == "file":
+    # لینک قدیمی فایل آرشیو
+    if len(parts) >= 3 and parts[1] == "file":
+        await query.answer()
 
         archive_code = parts[2]
-
-        # ادامه بررسی عضویت پایین‌تر انجام می‌شود
-
-    else:
-
-        movie_id = int(parts[1])
-        quality = parts[2]
-
-        language_type = None
-
-        if len(parts) >= 4:
-
-            language_type = parts[3]
-
-        if language_type == "all":
-
-            language_type = None
-
-    # -----------------------------------------------------
-    # بررسی واقعی عضویت
-    # -----------------------------------------------------
-
-    missing = await get_missing_memberships(
-        context.bot,
-        user_id,
-    )
-
-    # -----------------------------------------------------
-    # هنوز عضو کامل نیست
-    # -----------------------------------------------------
-
-    if missing:
-
-        await query.answer(
-            "❌ هنوز عضویت شما در همه موارد کامل نشده است.",
-            show_alert=True,
-        )
-
-        return
-
-    # -----------------------------------------------------
-    # عضویت کامل است
-    # -----------------------------------------------------
-
-    await query.answer(
-        "✅ عضویت شما تأیید شد."
-    )
-
-    # -----------------------------------------------------
-    # ارسال فایل آرشیو ۲
-    # -----------------------------------------------------
-
-    if parts[1] == "file":
-
         archive_file = database.get_archive_file_by_code(
             archive_code
         )
@@ -637,38 +469,58 @@ async def check_membership(
             return
 
         try:
-
-            await query.message.delete()
-
-        except Exception:
-
-            pass
-
-        if archive_file["file_type"] == "video":
-
-            await context.bot.send_video(
-                user_id,
-                archive_file["file_id"],
-            )
-
-        elif archive_file["file_type"] == "document":
-
-            await context.bot.send_document(
-                user_id,
-                archive_file["file_id"],
+            if archive_file["file_type"] == "video":
+                await context.bot.send_video(
+                    chat_id=query.from_user.id,
+                    video=archive_file["file_id"],
+                )
+            elif archive_file["file_type"] == "document":
+                await context.bot.send_document(
+                    chat_id=query.from_user.id,
+                    document=archive_file["file_id"],
+                )
+            else:
+                await query.message.reply_text(
+                    "❌ نوع فایل پشتیبانی نمی‌شود."
+                )
+        except Exception as e:
+            print("ARCHIVE SEND ERROR:", e)
+            await query.message.reply_text(
+                "❌ ارسال فایل آرشیو ناموفق بود."
             )
 
         return
 
-    # -----------------------------------------------------
-    # ارسال فیلم
-    # -----------------------------------------------------
+    # لینک قدیمی فیلم
+    if len(parts) < 3:
+        await query.answer(
+            "❌ اطلاعات لینک کامل نیست.",
+            show_alert=True,
+        )
+        return
+
+    try:
+        movie_id = int(parts[1])
+    except (ValueError, TypeError):
+        await query.answer(
+            "❌ شناسه فیلم معتبر نیست.",
+            show_alert=True,
+        )
+        return
+
+    quality = parts[2]
+    language_type = parts[3] if len(parts) >= 4 else None
 
     if quality == "all":
         quality = None
 
+    if language_type == "all":
+        language_type = None
+
+    await query.answer()
+
     await send_movie_to_user(
-        user_id,
+        query.from_user.id,
         movie_id,
         quality,
         context,
