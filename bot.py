@@ -2961,69 +2961,65 @@ async def favorites_button(
 # =========================================================
 
 async def back_home_button(
-    update,
-    context,
+update,
+context,
 ):
+query = update.callback_query
+await query.answer()
 
-    query = update.callback_query
+user = query.from_user
 
-    await query.answer()
+text = (
+    "🎬 به ربات فیلم‌بین خوش آمدید!\n\n"
+    "🔎 فیلم موردنظر خود را جستجو کنید و کیفیت "
+    "و نوع فایل دلخواهتان را انتخاب کنید.\n\n"
+    "📥 فایل فیلم مستقیماً در گفت‌وگوی خصوصی "
+    "ربات برای شما ارسال می‌شود.\n\n"
+    "✅ عضویت در کانال یا گروهی اجباری نیست."
+)
 
-    user = query.from_user
-
-    text = (
-        "🎬 به ربات فیلم‌بین خوش آمدید!\n\n"
-        "🔎 از این ربات می‌توانید فیلم موردنظر خود را "
-        "جستجو و کیفیت موردنظر را دریافت کنید.\n\n"
-        "🔐 برای دریافت فیلم باید ابتدا در کانال‌ها "
-        "و گروه مشخص‌شده عضو شوید."
-    )
-
-    buttons = [
-        [
-            InlineKeyboardButton(
-                "🔎 جستجوی فیلم",
-                callback_data="search",
-            )
-        ],
-        [
-            InlineKeyboardButton(
-                "🎬 جدیدترین فیلم‌ها",
-                callback_data="list",
-            )
-        ],
-        [
-            InlineKeyboardButton(
-                "⭐ علاقه‌مندی‌ها",
-                callback_data="favorites",
-            )
-        ],
-        [
-            InlineKeyboardButton(
-                "📖 راهنمای دریافت",
-                callback_data="guide",
-            )
-        ],
-    ]
-
-    if is_admin(user.id):
-
-        buttons.append(
-            [
-                InlineKeyboardButton(
-                    "⚙️ پنل مدیریت",
-                    callback_data="admin",
-                )
-            ]
+buttons = [
+    [
+        InlineKeyboardButton(
+            "🔎 جستجوی فیلم",
+            callback_data="search",
         )
+    ],
+    [
+        InlineKeyboardButton(
+            "🎬 جدیدترین فیلم‌ها",
+            callback_data="list",
+        )
+    ],
+    [
+        InlineKeyboardButton(
+            "⭐ علاقه‌مندی‌ها",
+            callback_data="favorites",
+        )
+    ],
+    [
+        InlineKeyboardButton(
+            "📖 راهنمای دریافت",
+            callback_data="guide",
+        )
+    ],
+]
 
-    await query.message.edit_text(
-        text,
-        reply_markup=InlineKeyboardMarkup(
-            buttons
-        ),
+if is_admin(user.id):
+    buttons.append(
+        [
+            InlineKeyboardButton(
+                "⚙️ پنل مدیریت",
+                callback_data="admin",
+            )
+        ]
     )
-    
+
+await query.message.edit_text(
+    text,
+    reply_markup=InlineKeyboardMarkup(buttons),
+)
+
 # =========================================================
 # تنظیم اعلان‌ها
 # =========================================================
