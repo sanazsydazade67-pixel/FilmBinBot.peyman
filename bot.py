@@ -465,7 +465,7 @@ async def send_welcome(
 
 
 # =========================================================
-# عضویت اجباری
+# عضویت اجباری غیرفعال است
 # =========================================================
 
 async def show_membership(
@@ -476,6 +476,11 @@ async def show_membership(
     language_type=None,
     archive_code=None,
 ):
+    if update.callback_query:
+        await update.callback_query.answer(
+            "عضویت اجباری غیرفعال است."
+        )
+        
 
     buttons = []
 
