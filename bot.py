@@ -2956,18 +2956,19 @@ async def favorites_button(
         ),
     )
     
+
 # =========================================================
 # بازگشت به منوی اصلی
 # =========================================================
-
+ 
 async def back_home_button(
-update,
-context,
+    update,
+    context,
 ):
-query = update.callback_query
-await query.answer()
+    query = update.callback_query
+    await query.answer()
 
-user = query.from_user
+    user = query.from_user
 
 text = (
     "🎬 به ربات فیلم‌بین خوش آمدید!\n\n"
@@ -3019,11 +3020,13 @@ await query.message.edit_text(
     text,
     reply_markup=InlineKeyboardMarkup(buttons),
 )
-
+```
+ 
 # =========================================================
+ 
 # تنظیم اعلان‌ها
+ 
 # =========================================================
-
 async def notifications_button(
     update,
     context,
