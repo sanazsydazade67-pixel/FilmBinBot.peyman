@@ -2969,26 +2969,13 @@ async def movie_view(
 
     user_id = query.from_user.id
 
-    # -----------------------------------------------------
-    # عضویت واقعی را بررسی کن
-    # -----------------------------------------------------
-
-    missing = await get_missing_memberships(
-        context.bot,
+    await send_movie_to_user(
         user_id,
+        movie_id,
+        None,
+        context,
     )
-
-    # اگر عضو همه است
-    if not missing:
-
-        await send_movie_to_user(
-            user_id,
-            movie_id,
-            None,
-            context,
-        )
-
-        return
+    
 
     # اگر عضو نیست
     await show_membership(
