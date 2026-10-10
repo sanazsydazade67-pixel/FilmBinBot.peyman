@@ -2955,12 +2955,12 @@ async def favorites_button(
             buttons
         ),
     )
-    
+
 
 # =========================================================
 # بازگشت به منوی اصلی
 # =========================================================
- 
+
 async def back_home_button(
     update,
     context,
@@ -2970,43 +2970,43 @@ async def back_home_button(
 
     user = query.from_user
 
-text = (
-    "🎬 به ربات فیلم‌بین خوش آمدید!\n\n"
-    "🔎 فیلم موردنظر خود را جستجو کنید و کیفیت "
-    "و نوع فایل دلخواهتان را انتخاب کنید.\n\n"
-    "📥 فایل فیلم مستقیماً در گفت‌وگوی خصوصی "
-    "ربات برای شما ارسال می‌شود.\n\n"
-    "✅ عضویت در کانال یا گروهی اجباری نیست."
-)
+    text = (
+        "🎬 به ربات فیلم‌بین خوش آمدید!\n\n"
+        "🔎 فیلم موردنظر خود را جستجو کنید و کیفیت "
+        "و نوع فایل دلخواهتان را انتخاب کنید.\n\n"
+        "📥 فایل فیلم مستقیماً در گفت‌وگوی خصوصی "
+        "ربات برای شما ارسال می‌شود.\n\n"
+        "✅ عضویت در کانال یا گروهی اجباری نیست."
+    )
 
-buttons = [
-    [
-        InlineKeyboardButton(
-            "🔎 جستجوی فیلم",
-            callback_data="search",
-        )
-    ],
-    [
-        InlineKeyboardButton(
-            "🎬 جدیدترین فیلم‌ها",
-            callback_data="list",
-        )
-    ],
-    [
-        InlineKeyboardButton(
-            "⭐ علاقه‌مندی‌ها",
-            callback_data="favorites",
-        )
-    ],
-    [
-        InlineKeyboardButton(
-            "📖 راهنمای دریافت",
-            callback_data="guide",
-        )
-    ],
-]
+    buttons = [
+        [
+            InlineKeyboardButton(
+                "🔎 جستجوی فیلم",
+                callback_data="search",
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                "🎬 جدیدترین فیلم‌ها",
+                callback_data="list",
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                "⭐ علاقه‌مندی‌ها",
+                callback_data="favorites",
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                "📖 راهنمای دریافت",
+                callback_data="guide",
+            )
+        ],
+    ]
 
-if is_admin(user.id):
+    if is_admin(user.id):
         buttons.append(
             [
                 InlineKeyboardButton(
@@ -3041,15 +3041,12 @@ async def notifications_button(
     )
 
     if enabled:
-
         text = (
             "🔔 اعلان‌های فیلم جدید فعال است.\n\n"
             "هر زمان فیلم جدیدی منتشر شود، "
             "به شما اطلاع داده خواهد شد."
         )
-
     else:
-
         text = (
             "🔕 اعلان‌های فیلم جدید خاموش است.\n\n"
             "در صورت خاموش بودن، اعلان فیلم‌های جدید "
@@ -3083,7 +3080,8 @@ async def notifications_button(
             buttons
         ),
     )
-    
+
+
 # =========================================================
 # تغییر وضعیت اعلان‌ها
 # =========================================================
