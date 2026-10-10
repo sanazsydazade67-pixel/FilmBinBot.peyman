@@ -2605,46 +2605,23 @@ async def publish_movie(
 
     text = (
         f"🎬 {movie['title']}\n"
-        "━━━━━━━━━━━━━━━━━━\n\n"
-
-        f"🎞️ عنوان اصلی: "
-        f"{movie['original_title'] or '—'}\n"
-
-        f"⭐ امتیاز IMDb: "
-        f"{movie['imdb'] or '—'}\n"
-
-        f"🎭 ژانر: "
-        f"{movie['category'] or '—'}\n"
-
-        f"🌍 کشور سازنده: "
-        f"{movie['country'] or '—'}\n"
-
-        f"🎙️ وضعیت فیلم: "
-        f"{movie['subtitle'] or '—'}\n\n"
-
         "━━━━━━━━━━━━━━━━━━\n"
-        "🎬 عوامل فیلم\n\n"
-
-        f"🎥 کارگردان: "
-        f"{movie['director'] or '—'}\n"
-
-        f"⭐ بازیگران: "
-        f"{movie['stars'] or '—'}\n\n"
-
+        f"🎞️ {movie['original_title'] or '—'}\n"
+        f"⭐ IMDb {movie['imdb'] or '—'}"
+        f"  •  🎭 {movie['category'] or '—'}\n"
+        f"🌍 کشور: {movie['country'] or '—'}\n"
+        f"🎙️ نسخه: {movie['subtitle'] or '—'}\n\n"
+        f"🎬 کارگردان: {movie['director'] or '—'}\n"
+        f"⭐ بازیگران: {movie['stars'] or '—'}\n\n"
+        "📖 خلاصه داستان\n"
+        f"{movie['synopsis'] or 'خلاصه داستان ثبت نشده است.'}\n"
         "━━━━━━━━━━━━━━━━━━\n"
-        "📖 خلاصه داستان\n\n"
-
-        f"{movie['synopsis'] or 'خلاصه داستان ثبت نشده است.'}\n\n"
-
-        "━━━━━━━━━━━━━━━━━━\n"
-        "🍿 FILMBIN | فیلم‌بین\n"
-        "📥 کیفیت موردنظرت رو از دکمه‌های پایین انتخاب کن 👇"
+        "🍿 FILMBIN | فیلم‌بین"
     )
 
     message_ids = []
 
     try:
-
 
         # -------------------------------------------------
         # پوستر
