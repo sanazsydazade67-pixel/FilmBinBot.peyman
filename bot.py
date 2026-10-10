@@ -39,7 +39,7 @@ BOT_USERNAME = "FilmBinDownloadBot"
 
 # گروه اصلی انتشار فیلم‌بین
 FILM_CHANNEL = "@FilmBin_vs_ZarabanMusic"
-
+FILM_CHANNEL_SECONDARY = "@FilmBinTV15FilmBinMovie"
 # کانال آرشیو
 ARCHIVE_CHANNEL = "@P_sh_Archive"
 
