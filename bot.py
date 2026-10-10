@@ -3186,18 +3186,36 @@ async def confirm_delete(
         movie_id
     )
 
-    for message_id in message_ids:
+    for item in message_ids:
 
         try:
 
+            # پیام‌های جدید: شناسه پیام همراه با مقصد
+            if isinstance(item, dict):
+
+                chat_id = item.get("chat_id")
+                message_id = item.get("message_id")
+
+            # سازگاری با پیام‌های فیلم‌های قدیمی
+            else:
+
+                chat_id = FILM_CHANNEL
+                message_id = item
+
+            if not chat_id or not message_id:
+                continue
+
             await context.bot.delete_message(
-                FILM_CHANNEL,
-                int(message_id),
+                chat_id=chat_id,
+                message_id=int(message_id),
             )
 
-        except Exception:
+        except Exception as error:
 
-            pass
+            print(
+                "DELETE MESSAGE ERROR:",
+                error,
+            )
 
     database.delete_movie(
         movie_id
