@@ -2627,91 +2627,16 @@ async def publish_movie(
 
     try:
 
-        # -------------------------------------------------
-        # پوستر
-        # -------------------------------------------------
-
-        if movie["poster_file_id"]:
-
-            caption = text[:1024]
-
-            poster_message = (
-                await context.bot.send_photo(
-                    FILM_CHANNEL,
-                    movie["poster_file_id"],
-                    caption=caption,
-                )
-            )
-
-        else:
-
-            poster_message = (
-                await context.bot.send_message(
-                    FILM_CHANNEL,
-                    text[:4096],
-                )
-            )
-
-        message_ids.append(
-            poster_message.message_id
-        )
+        destinations = [
+            FILM_CHANNEL,
+            FILM_CHANNEL_SECONDARY,
+        ]
 
         # -------------------------------------------------
-        # متن اضافی
-        # -------------------------------------------------
-
-        if (
-            movie["poster_file_id"]
-            and len(text) > 1024
-        ):
-
-            extra_message = (
-                await context.bot.send_message(
-                    FILM_CHANNEL,
-                    text[1024:],
-                )
-            )
-
-            message_ids.append(
-                extra_message.message_id
-            )
-
-        # -------------------------------------------------
-        # تریلر
-        # -------------------------------------------------
-
-        if movie["trailer_file_id"]:
-
-            if movie["trailer_type"] == "video":
-
-                trailer_message = (
-                    await context.bot.send_video(
-                        FILM_CHANNEL,
-                        movie["trailer_file_id"],
-                        caption="🎬 تریلر",
-                    )
-                )
-
-            else:
-
-                trailer_message = (
-                    await context.bot.send_document(
-                        FILM_CHANNEL,
-                        movie["trailer_file_id"],
-                        caption="🎬 تریلر",
-                    )
-                )
-
-            message_ids.append(
-                trailer_message.message_id
-            )
-
-        # -------------------------------------------------
-        # دکمه‌های کیفیت
+        # ساخت دکمه‌های کیفیت
         # -------------------------------------------------
 
         buttons = []
-
         row = []
 
         for quality in qualities:
@@ -2730,34 +2655,110 @@ async def publish_movie(
             )
 
             if len(row) == 2:
-
                 buttons.append(row)
-
                 row = []
 
         if row:
-
             buttons.append(row)
 
-        quality_message = (
-            await context.bot.send_message(
-                FILM_CHANNEL,
-                (
-                    "📥 برای دریافت کیفیت موردنظر، "
-                    "گزینه موردنظر را انتخاب کنید:"
-                ),
-                reply_markup=InlineKeyboardMarkup(
-                    buttons
-                ),
-            )
-        )
+        # -------------------------------------------------
+        # انتشار در هر دو مقصد
+        # -------------------------------------------------
 
-        message_ids.append(
-            quality_message.message_id
-        )
+        for destination in destinations:
+
+            # پوستر و متن اصلی
+            if movie["poster_file_id"]:
+
+                poster_message = (
+                    await context.bot.send_photo(
+                        destination,
+                        movie["poster_file_id"],
+                        caption=text[:1024],
+                    )
+                )
+
+            else:
+
+                poster_message = (
+                    await context.bot.send_message(
+                        destination,
+                        text[:4096],
+                    )
+                )
+
+            message_ids.append({
+                "chat_id": destination,
+                "message_id": poster_message.message_id,
+            })
+
+            # متن اضافی
+            if (
+                movie["poster_file_id"]
+                and len(text) > 1024
+            ):
+
+                extra_message = (
+                    await context.bot.send_message(
+                        destination,
+                        text[1024:],
+                    )
+                )
+
+                message_ids.append({
+                    "chat_id": destination,
+                    "message_id": extra_message.message_id,
+                })
+
+            # تریلر، در صورت وجود
+            if movie["trailer_file_id"]:
+
+                if movie["trailer_type"] == "video":
+
+                    trailer_message = (
+                        await context.bot.send_video(
+                            destination,
+                            movie["trailer_file_id"],
+                            caption="🎬 تریلر",
+                        )
+                    )
+
+                else:
+
+                    trailer_message = (
+                        await context.bot.send_document(
+                            destination,
+                            movie["trailer_file_id"],
+                            caption="🎬 تریلر",
+                        )
+                    )
+
+                message_ids.append({
+                    "chat_id": destination,
+                    "message_id": trailer_message.message_id,
+                })
+
+            # دکمه‌های کیفیت
+            quality_message = (
+                await context.bot.send_message(
+                    destination,
+                    (
+                        "📥 برای دریافت کیفیت موردنظر، "
+                        "گزینه موردنظر را انتخاب کنید:"
+                    ),
+                    reply_markup=InlineKeyboardMarkup(
+                        buttons
+                    ),
+                )
+            )
+
+            message_ids.append({
+                "chat_id": destination,
+                "message_id": quality_message.message_id,
+            })
 
         # -------------------------------------------------
-        # ذخیره پیام‌های کانال
+        # ذخیره پیام‌های هر دو مقصد
         # -------------------------------------------------
 
         database.save_channel_message_ids(
@@ -2780,7 +2781,7 @@ async def publish_movie(
         )
 
         await query.message.edit_text(
-            "✅ فیلم با موفقیت در گروه فیلم‌بین منتشر شد.",
+            "✅ فیلم با موفقیت در گروه و کانال فیلم‌بین منتشر شد.",
             reply_markup=admin_menu_markup(),
         )
 
@@ -2792,9 +2793,8 @@ async def publish_movie(
         )
 
         await query.message.reply_text(
-            "❌ انتشار انجام نشد.\n\n"
-            "مطمئن شو ربات در گروه فیلم‌بین "
-            "عضو باشد و اجازه ارسال پیام داشته باشد."
+            "❌ انتشار کامل انجام نشد.\n\n"
+            "خطا را در Logs سرویس Railway بررسی کن."
         )
 
 
