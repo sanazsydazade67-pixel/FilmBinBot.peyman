@@ -3007,30 +3007,29 @@ buttons = [
 ]
 
 if is_admin(user.id):
-    buttons.append(
-        [
-            InlineKeyboardButton(
-                "⚙️ پنل مدیریت",
-                callback_data="admin",
-            )
-        ]
+        buttons.append(
+            [
+                InlineKeyboardButton(
+                    "⚙️ پنل مدیریت",
+                    callback_data="admin",
+                )
+            ]
+        )
+
+    await query.message.edit_text(
+        text,
+        reply_markup=InlineKeyboardMarkup(buttons),
     )
 
-await query.message.edit_text(
-    text,
-    reply_markup=InlineKeyboardMarkup(buttons),
-)
- 
+
 # =========================================================
- 
 # تنظیم اعلان‌ها
- 
 # =========================================================
+
 async def notifications_button(
     update,
     context,
 ):
-
     query = update.callback_query
 
     await query.answer()
