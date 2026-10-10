@@ -2604,19 +2604,23 @@ async def publish_movie(
     ]
 
     text = (
-        f"🎬 {movie['title']}\n"
+        "🎬 FILMBIN | معرفی فیلم\n"
+        "━━━━━━━━━━━━━━━━━━\n\n"
+        f"✨ {movie['title']}\n\n"
+        f"🎞️ عنوان اصلی: {movie['original_title'] or '—'}\n"
+        f"⭐ IMDb: {movie['imdb'] or '—'}"
+        f"   •   🎭 ژانر: {movie['category'] or '—'}\n"
         "━━━━━━━━━━━━━━━━━━\n"
-        f"🎞️ {movie['original_title'] or '—'}\n"
-        f"⭐ IMDb {movie['imdb'] or '—'}"
-        f"  •  🎭 {movie['category'] or '—'}\n"
+        "🎥 مشخصات فیلم\n\n"
         f"🌍 کشور: {movie['country'] or '—'}\n"
-        f"🎙️ نسخه: {movie['subtitle'] or '—'}\n\n"
+        f"🎙️ نسخه: {movie['subtitle'] or '—'}\n"
         f"🎬 کارگردان: {movie['director'] or '—'}\n"
-        f"⭐ بازیگران: {movie['stars'] or '—'}\n\n"
-        "📖 خلاصه داستان\n"
-        f"{movie['synopsis'] or 'خلاصه داستان ثبت نشده است.'}\n"
+        f"🌟 بازیگران: {movie['stars'] or '—'}\n\n"
         "━━━━━━━━━━━━━━━━━━\n"
-        "🍿 FILMBIN | فیلم‌بین"
+        "📖 خلاصه داستان\n\n"
+        f"{movie['synopsis'] or 'خلاصه داستان ثبت نشده است.'}\n\n"
+        "━━━━━━━━━━━━━━━━━━\n"
+        "🍿 FILMBIN • فیلم‌بین"
     )
 
     message_ids = []
