@@ -37,8 +37,8 @@ ADMIN_IDS = {
 
 BOT_USERNAME = "FilmBinDownloadBot"
 
-# کانال اصلی فیلم‌بین
-FILM_CHANNEL = "@FilmBinTV15FilmBinMovie"
+# گروه اصلی انتشار فیلم‌بین
+FILM_CHANNEL = "@FilmBin_vs_ZarabanMusic"
 
 # کانال آرشیو
 ARCHIVE_CHANNEL = "@P_sh_Archive"
